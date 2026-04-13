@@ -5,4 +5,8 @@ target_include_directories(graffodil-circular
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 target_link_libraries(graffodil-circular PUBLIC Graffodil::Core)
-target_sources(graffodil-circular PRIVATE src/placeholder.cpp)
+
+target_sources(graffodil-circular PRIVATE
+    src/CircularLayout.cpp
+    include/graffodil/CircularLayout.h
+)
