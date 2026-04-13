@@ -4,6 +4,8 @@
 #include <graffodil/GraphScene.h>
 #include <graffodil/GraphTool.h>
 #include <graffodil/SelectMoveTool.h>
+#include <graffodil/CreateEdgeTool.h>
+#include <graffodil/PanZoomTool.h>
 #include "TestHelpers.h"
 
 using namespace Graffodil;
@@ -53,6 +55,93 @@ private slots:
         scene.setActiveTool(&tool);
         // Activation should emit status message
         QVERIFY(spy.count() >= 1);
+    }
+
+    void createEdgeToolEmitsRequest() {
+        GraphScene scene;
+        CreateEdgeTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        auto *n2 = new TestNode("n2", {200, 0});
+        scene.addNode(n1);
+        scene.addNode(n2);
+
+        QSignalSpy spy(&tool, &CreateEdgeTool::edgeRequested);
+
+        // Click on source node
+        QGraphicsSceneMouseEvent press1(QEvent::GraphicsSceneMousePress);
+        press1.setScenePos(QPointF(50, 30));
+        press1.setButton(Qt::LeftButton);
+        press1.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press1);
+
+        QGraphicsSceneMouseEvent release1(QEvent::GraphicsSceneMouseRelease);
+        release1.setScenePos(QPointF(50, 30));
+        release1.setButton(Qt::LeftButton);
+        release1.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release1);
+
+        // Click on target node
+        QGraphicsSceneMouseEvent press2(QEvent::GraphicsSceneMousePress);
+        press2.setScenePos(QPointF(250, 30));
+        press2.setButton(Qt::LeftButton);
+        press2.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press2);
+
+        QGraphicsSceneMouseEvent release2(QEvent::GraphicsSceneMouseRelease);
+        release2.setScenePos(QPointF(250, 30));
+        release2.setButton(Qt::LeftButton);
+        release2.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release2);
+
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void createEdgeToolPreventsSelfLoop() {
+        GraphScene scene;
+        CreateEdgeTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        scene.addNode(n1);
+
+        QSignalSpy spy(&tool, &CreateEdgeTool::edgeRequested);
+
+        // Click on same node twice
+        QGraphicsSceneMouseEvent press1(QEvent::GraphicsSceneMousePress);
+        press1.setScenePos(QPointF(50, 30));
+        press1.setButton(Qt::LeftButton);
+        press1.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press1);
+
+        QGraphicsSceneMouseEvent release1(QEvent::GraphicsSceneMouseRelease);
+        release1.setScenePos(QPointF(50, 30));
+        release1.setButton(Qt::LeftButton);
+        release1.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release1);
+
+        QGraphicsSceneMouseEvent press2(QEvent::GraphicsSceneMousePress);
+        press2.setScenePos(QPointF(50, 30));
+        press2.setButton(Qt::LeftButton);
+        press2.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press2);
+
+        QGraphicsSceneMouseEvent release2(QEvent::GraphicsSceneMouseRelease);
+        release2.setScenePos(QPointF(50, 30));
+        release2.setButton(Qt::LeftButton);
+        release2.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release2);
+
+        QCOMPARE(spy.count(), 0);
+    }
+
+    void panZoomToolActivates() {
+        GraphScene scene;
+        PanZoomTool tool;
+        scene.setActiveTool(&tool);
+        QCOMPARE(scene.activeTool(), &tool);
+        QCOMPARE(tool.scene(), &scene);
     }
 };
 

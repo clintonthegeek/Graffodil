@@ -20,6 +20,9 @@ target_sources(graffodil-core PRIVATE
     src/GraphEdgeItem.cpp
     src/GraphTool.cpp
     src/SelectMoveTool.cpp
+    src/CreateEdgeTool.cpp
+    src/PanZoomTool.cpp
+    src/AnchorHighlight.cpp
     include/graffodil/Types.h
     include/graffodil/IGraphNode.h
     include/graffodil/IGraphEdge.h
@@ -30,4 +33,7 @@ target_sources(graffodil-core PRIVATE
     include/graffodil/GraphEdgeItem.h
     include/graffodil/GraphTool.h
     include/graffodil/SelectMoveTool.h
+    include/graffodil/CreateEdgeTool.h
+    include/graffodil/PanZoomTool.h
+    include/graffodil/AnchorHighlight.h
 )
