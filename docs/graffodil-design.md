@@ -1,0 +1,756 @@
+# Graffodil — Shared Qt Graph Scene Framework
+
+**Date:** 2026-04-13
+**Status:** Design approved, pending implementation plan
+**Repository:** `~/dev/Graffodil/` (standalone, consumed by PlanStan and Corbomite)
+
+## Problem
+
+Five graph drawing contexts exist across two projects (PlanStan and Corbomite), each independently implementing QGraphicsView/Scene-based graph rendering with overlapping patterns: arrowhead drawing, anchor systems, tool state machines, edge routing. This duplication increases maintenance burden and prevents cross-pollination of improvements.
+
+| Context | Project | LOC | Scale | Layout | Edge Style |
+|---------|---------|-----|-------|--------|------------|
+| PERT/CPM graph | PlanStan `libs/graph/` | ~5,768 | ~100s | Sugiyama layered | Orthogonal/Direct |
+| Gantt arrows | PlanStan `libs/gantt/` | ~300 | ~100s | N/A (1D constrained) | Dog-leg polyline |
+| Sync topology | PlanStan (not yet built) | — | 3–7 | Circular/Force | Directed arrows |
+| Force-directed graph | Corbomite `libs/forcegraph/` | ~3,283 | 10K+ | ForceAtlas2 + multilevel | Straight lines |
+| Canvas | Corbomite `libs/canvas/` | ~3,851 | ~100s | Manual placement | Cubic bezier |
+
+## Goals
+
+- Eliminate duplication of graph primitives (arrowheads, anchors, tools, edge rendering)
+- Provide a scene framework flexible enough for all five contexts without constraining any of them
+- Keep the core lightweight — optional modules for layout algorithms and high-node-count rendering
+- Enable building the sync topology widget on Graffodil from day one (proving the framework)
+
+## Non-Goals
+
+- Replacing the Gantt arrow system (too 1D-specific; borrows arrowhead math only)
+- Replacing PlanStan's `DependencyGraph` CPM engine (stays in `libs/scheduling/`)
+- Dictating what nodes look like (consumers own node rendering)
+- Forcing all consumers to carry layout or batch rendering code they don't need
+
+## Architecture
+
+### Core + Extensions Model
+
+Mirrors Qt's own component packaging. One core library containing the scene framework, with optional satellite targets for layout algorithms and batch rendering.
+
+```
+Graffodil::Core       — interfaces, scene, tools, edge items, path strategies,
+                         terminus styles, minimap, anchor highlight, connector
+Graffodil::Sugiyama   — Sugiyama layered layout engine (depends: Core)
+Graffodil::Force      — ForceAtlas2 + multilevel layout (depends: Core)
+Graffodil::Circular   — Circular/radial layout (depends: Core)
+Graffodil::Batch      — BatchRenderer, SpatialGrid, QuadTree (depends: Core)
+```
+
+Consumer CMake:
+```cmake
+find_package(Graffodil COMPONENTS Core Sugiyama REQUIRED)
+target_link_libraries(my-target PRIVATE Graffodil::Core Graffodil::Sugiyama)
+```
+
+### Design Strategy
+
+**Pragmatic hybrid:** clean-room the interfaces and contracts, but transplant proven implementations from existing code. The Sugiyama layout, ForceAtlas2 engine, bezier edge renderer, and batch rendering pipeline are battle-tested — no rewrites.
+
+---
+
+## Core Interfaces
+
+### IGraphNode
+
+Anything that can participate as a node in a `GraphScene`. Consumers implement this on their own QGraphicsItem subclasses.
+
+```cpp
+namespace Graffodil {
+
+enum class Side { Top, Right, Bottom, Left };
+
+class IGraphNode {
+public:
+    virtual ~IGraphNode() = default;
+
+    // Unique identifier for this node within the scene.
+    virtual QString nodeId() const = 0;
+
+    // Connection point for the given side. Used by edges and tools
+    // to determine where to attach/draw from.
+    virtual QPointF anchorPoint(Side side) const = 0;
+
+    // Bounding rect in scene coordinates. Used by the scene for
+    // spatial queries and by layout engines for spacing.
+    virtual QRectF nodeBoundingRect() const = 0;
+
+    // Bridge to the Qt graphics item system. The scene calls this
+    // to add/remove the item from the QGraphicsScene.
+    // Must return a stable pointer for the lifetime of the node.
+    virtual QGraphicsItem *graphicsItem() = 0;
+};
+
+}
+```
+
+**ID type rationale:** `QString` chosen because all existing consumers already use string IDs (UUIDs in PlanStan, file paths in Corbomite ForceGraph, hex strings in Corbomite Canvas). Hash lookup performance is sufficient for the core scene's scale. The Batch module maintains its own packed integer arrays internally where performance demands it.
+
+### IGraphEdge
+
+Anything that can participate as an edge. Consumers can use the provided `GraphEdgeItem` or implement their own.
+
+```cpp
+namespace Graffodil {
+
+class IGraphEdge {
+public:
+    virtual ~IGraphEdge() = default;
+
+    virtual QString edgeId() const = 0;
+    virtual IGraphNode *sourceNode() const = 0;
+    virtual IGraphNode *targetNode() const = 0;
+
+    // Bridge to QGraphicsItem, same pattern as IGraphNode.
+    virtual QGraphicsItem *graphicsItem() = 0;
+};
+
+}
+```
+
+### LayoutResult
+
+The communication contract between layout engines and the scene. Layout engines produce this; the scene consumes it via `applyLayout()`.
+
+```cpp
+namespace Graffodil {
+
+struct LayoutResult {
+    QHash<QString, QPointF> nodePositions;
+    // Optional: waypoints for edges that span multiple layers (Sugiyama)
+    // or need routing hints. Key is (sourceId, targetId).
+    QHash<QPair<QString, QString>, QList<QPointF>> edgeWaypoints;
+};
+
+}
+```
+
+---
+
+## GraphScene
+
+The central framework piece. Manages node/edge registry, dispatches events to the active tool, provides typed selection queries.
+
+```cpp
+namespace Graffodil {
+
+class GraphScene : public QGraphicsScene {
+    Q_OBJECT
+public:
+    // --- Node/edge registry ---
+
+    void addNode(IGraphNode *node);
+    void removeNode(const QString &id);
+    IGraphNode *nodeForId(const QString &id) const;
+    QList<IGraphNode *> nodes() const;
+
+    void addEdge(IGraphEdge *edge);
+    void removeEdge(const QString &id);
+    IGraphEdge *edgeForId(const QString &id) const;
+    IGraphEdge *edgeBetween(const QString &sourceId, const QString &targetId) const;
+    QList<IGraphEdge *> edges() const;
+
+    // --- Tool dispatch ---
+
+    // Consumer wires tool activation to QAction/KAction.
+    // The scene doesn't know about action frameworks.
+    void setActiveTool(GraphTool *tool);
+    GraphTool *activeTool() const;
+
+    // --- Selection (typed over interfaces) ---
+
+    QList<IGraphNode *> selectedNodes() const;
+    QList<IGraphEdge *> selectedEdges() const;
+
+    // --- Layout ---
+
+    // Applies computed positions to registered nodes.
+    // For edges: if edgeWaypoints are provided and the edge is a
+    // GraphEdgeItem, waypoints are passed to the path strategy.
+    void applyLayout(const LayoutResult &result);
+
+signals:
+    void nodeAdded(IGraphNode *node);
+    void nodeRemoved(const QString &id);
+    void edgeAdded(IGraphEdge *edge);
+    void edgeRemoved(const QString &id);
+    void selectionChanged();
+
+protected:
+    void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *e) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
+    void keyPressEvent(QKeyEvent *e) override;
+};
+
+}
+```
+
+**Ownership model:** The scene manages the QGraphicsItem lifetime (standard Qt parent-child ownership via `QGraphicsScene::addItem()`). The `IGraphNode`/`IGraphEdge` wrapper objects are owned by the consumer — the scene holds non-owning pointers and removes them from its registry on `removeNode()`/`removeEdge()`.
+
+**Layout agnosticism:** The scene does not require a layout engine. Consumers can position nodes manually (Canvas), via a one-shot layout (Sugiyama, Circular), via an animated simulation (Force), or by deserializing saved positions. The scene neither knows nor cares which approach is used.
+
+---
+
+## Edge Rendering
+
+### EdgePathStrategy
+
+Pluggable path computation. Determines the shape of the line between two anchor points.
+
+```cpp
+namespace Graffodil {
+
+class EdgePathStrategy {
+public:
+    virtual ~EdgePathStrategy() = default;
+
+    // Compute the QPainterPath for an edge given its endpoints and
+    // optional waypoints (from layout engines or manual routing).
+    virtual QPainterPath computePath(
+        const QPointF &sourceAnchor, Side sourceSide,
+        const QPointF &targetAnchor, Side targetSide,
+        const QList<QPointF> &waypoints = {}) = 0;
+};
+
+}
+```
+
+**Provided strategies** (transplanted from existing code):
+
+| Strategy | Source | Behavior |
+|----------|--------|----------|
+| `DirectPathStrategy` | New (trivial) | Straight line from source to target |
+| `BezierPathStrategy` | Corbomite `EdgeItem.cpp` | Cubic bezier with curvature = min(distance * 0.4, 80.0), control points extend outward from connection side |
+| `OrthogonalPathStrategy` | PlanStan `DependencyEdgeItem` | Right-angle segments with waypoint support, channel-based routing to minimize overlaps |
+| `PolylinePathStrategy` | PlanStan `GanttArrowItem` (adapted) | Multi-segment straight lines through waypoints |
+
+### TerminusStyle
+
+Pluggable endpoint rendering. Replaces a fixed arrowhead enum with extensible per-endpoint shapes.
+
+```cpp
+namespace Graffodil {
+
+class TerminusStyle {
+public:
+    virtual ~TerminusStyle() = default;
+
+    // Draw the terminus at 'tip', arriving from direction 'from'.
+    // Returns the inset point where the edge line should end,
+    // so the line meets the base of the shape rather than the tip.
+    virtual QPointF draw(QPainter *painter, const QPointF &tip,
+                         const QPointF &from, const QPen &edgePen) = 0;
+
+    // Size contribution for bounding rect / hit testing.
+    virtual qreal size() const = 0;
+};
+
+}
+```
+
+**Provided terminus styles:**
+
+| Style | Visual |
+|-------|--------|
+| `TriangleTerminus` | Filled triangle (default arrowhead) |
+| `OpenArrowTerminus` | Unfilled chevron |
+| `DiamondTerminus` | Filled or unfilled diamond (configurable) |
+| `CircleTerminus` | Filled or unfilled dot (configurable) |
+| `BarTerminus` | Perpendicular bar |
+| `NoTerminus` | Nothing (returns tip unchanged) |
+
+Consumers can subclass `TerminusStyle` for domain-specific shapes (e.g., `CrowsFootTerminus` for ER diagrams) without modifying library code.
+
+### GraphEdgeItem
+
+The provided edge implementation. Consumers who don't need custom edge rendering use this directly. It implements `IGraphEdge` and composes a path strategy with terminus styles.
+
+```cpp
+namespace Graffodil {
+
+enum class ArrowEnd { Source, Target };
+
+class GraphEdgeItem : public QGraphicsPathItem, public IGraphEdge {
+public:
+    GraphEdgeItem(IGraphNode *source, Side sourceSide,
+                  IGraphNode *target, Side targetSide,
+                  EdgePathStrategy *strategy);
+
+    // --- IGraphEdge ---
+    QString edgeId() const override;
+    IGraphNode *sourceNode() const override;
+    IGraphNode *targetNode() const override;
+    QGraphicsItem *graphicsItem() override;
+
+    // --- Configuration ---
+    void setPathStrategy(EdgePathStrategy *strategy);
+    void setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style);
+    void setPen(const QPen &pen);      // line style, dash pattern, width, color
+    void setHighlighted(bool);
+
+    // --- Geometry update ---
+    // Call when source/target nodes move. Recomputes path from
+    // current anchor positions through the active strategy.
+    void adjust();
+
+protected:
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) override;
+};
+
+}
+```
+
+**Shared arrowhead math:** The `atan2` + polygon arrowhead code duplicated across all four existing views is written once in `GraphEdgeItem::paint()` (delegating to the active `TerminusStyle`). This is the single biggest duplication eliminated by the library.
+
+---
+
+## Tool Framework
+
+Tools handle user interaction. They receive scene events, emit signals for consumer response, and never mutate the data model directly.
+
+### GraphTool Base
+
+```cpp
+namespace Graffodil {
+
+class GraphTool : public QObject {
+    Q_OBJECT
+public:
+    // Called by GraphScene when this tool becomes active/inactive.
+    // Use to set cursors, add preview items, etc.
+    virtual void activate(GraphScene *scene);
+    virtual void deactivate();
+
+    virtual void mousePressEvent(QGraphicsSceneMouseEvent *) = 0;
+    virtual void mouseMoveEvent(QGraphicsSceneMouseEvent *) = 0;
+    virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *) = 0;
+    virtual void keyPressEvent(QKeyEvent *) {}
+    virtual void keyReleaseEvent(QKeyEvent *) {}
+
+    GraphScene *scene() const;
+
+signals:
+    // Status hints for toolbar/statusbar display.
+    // Consumer connects this to their status widget.
+    void statusMessage(const QString &msg);
+};
+
+}
+```
+
+### Provided Tools
+
+**SelectMoveTool** (~150 LOC, transplanted from PlanStan `SelectMoveTool` + Corbomite `CanvasTool`):
+- Click: select node or edge
+- Drag on node: move (with optional alignment snap guides)
+- Rubber-band drag: multi-select
+- Shift+click: toggle selection
+- Delete key: emits `deleteRequested` (consumer decides what to delete and how to undo)
+
+```cpp
+class SelectMoveTool : public GraphTool {
+    Q_OBJECT
+signals:
+    // Consumer handles deletion and undo. Tool doesn't mutate the scene.
+    void deleteRequested(const QList<IGraphNode *> &nodes,
+                         const QList<IGraphEdge *> &edges);
+    // Consumer pushes undo commands for position changes.
+    void nodeMoved(IGraphNode *node, const QPointF &oldPos, const QPointF &newPos);
+};
+```
+
+**CreateEdgeTool** (~150 LOC, transplanted from PlanStan `CreateEdgeTool` + Corbomite canvas edge creation):
+- Click near node edge: snap to nearest anchor, highlight
+- Drag: dashed preview line following cursor
+- Release on target node: emit `edgeRequested` with source/target and sides
+- Escape: cancel
+- Prevents self-loops
+
+```cpp
+class CreateEdgeTool : public GraphTool {
+    Q_OBJECT
+signals:
+    // Consumer creates the appropriate edge type, adds it to the scene,
+    // updates their data model, and pushes an undo command.
+    void edgeRequested(IGraphNode *source, Side sourceSide,
+                       IGraphNode *target, Side targetSide);
+};
+```
+
+**PanZoomTool** (~100 LOC, transplanted from both codebases):
+- Left-drag: pan canvas
+- Scroll / middle-drag: zoom to cursor position
+
+```cpp
+class PanZoomTool : public GraphTool {};
+```
+
+**Integration pattern:** Consumers wire tool activation to `QAction` or `KActionCollection` actions. The tools themselves are pure Qt — no KDE dependency in the library.
+
+```cpp
+// Example consumer integration (PlanStan):
+// auto selectAction = actionCollection()->addAction("graph_select");
+// connect(selectAction, &QAction::triggered, this, [this]() {
+//     m_scene->setActiveTool(m_selectTool);
+// });
+```
+
+---
+
+## Layout Engines
+
+### Interface (in Core)
+
+```cpp
+namespace Graffodil {
+
+class LayoutEngine {
+public:
+    virtual ~LayoutEngine() = default;
+
+    virtual void setNodes(const QList<IGraphNode *> &nodes) = 0;
+    virtual void setEdges(const QList<IGraphEdge *> &edges) = 0;
+
+    // Compute positions. Does not modify the scene.
+    // Consumer calls scene->applyLayout(result).
+    virtual LayoutResult compute() = 0;
+
+    // For iterative layouts: run one simulation step.
+    // Returns false when converged.
+    virtual bool tick() { return false; }
+    virtual bool isIterative() const { return false; }
+
+    // Current positions after the last tick(). Only meaningful for
+    // iterative layouts. One-shot layouts return empty until compute().
+    virtual LayoutResult currentPositions() const { return {}; }
+};
+
+}
+```
+
+**Usage patterns:**
+
+```cpp
+// One-shot (Sugiyama, Circular):
+scene->applyLayout(engine->compute());
+
+// Animated (Force-directed):
+// Consumer drives a QTimer:
+//   if (!engine->tick()) timer->stop();
+//   scene->applyLayout(engine->currentPositions());
+
+// Manual placement (Canvas):
+// No engine at all. Consumer positions nodes directly.
+```
+
+### Graffodil::Sugiyama
+
+Transplanted from PlanStan `libs/graph/src/graphlayout.cpp` (800 LOC).
+
+Five-phase Sugiyama layered layout:
+1. Connected component detection (BFS, deterministic ordering)
+2. Longest-path layer assignment with vertex promotion
+3. Dummy vertex insertion for multi-layer edges
+4. Median-based crossing minimization (adaptive, up to 24 sweeps)
+5. Brandes-Kopf compact coordinate assignment (4 extreme layouts, median)
+
+```cpp
+namespace Graffodil {
+
+class SugiyamaLayout : public LayoutEngine {
+public:
+    void setNodeSize(const QSizeF &size);
+    void setSpacing(qreal horizontal, qreal vertical);
+
+    // Optional: ordered list of node IDs to center-align as a visual spine.
+    // In PlanStan this is the critical path from DependencyGraph.
+    // Other consumers might use it for any emphasized path through the graph.
+    void setSpine(const QStringList &orderedNodeIds);
+    void setSpineAlignment(bool enabled);
+
+    LayoutResult compute() override;
+    bool isIterative() const override { return false; }
+};
+
+}
+```
+
+**PlanStan integration** (no regression to CPM calculations):
+```cpp
+m_depGraph.build();                          // CPM runs in libs/scheduling/, untouched
+SugiyamaLayout layout;
+layout.setNodes(scene->nodes());
+layout.setEdges(scene->edges());
+layout.setSpine(m_depGraph.criticalPath()); // feeds CP into layout
+scene->applyLayout(layout.compute());        // same positions as today
+```
+
+### Graffodil::Force
+
+Transplanted from Corbomite `libs/forcegraph/` (~850 LOC engine + multilevel).
+
+Modified ForceAtlas2 with:
+- Barnes-Hut quadtree approximation for O(n log n) repulsion
+- Adaptive speed control (per-node swinging/traction)
+- Energy-based convergence detection
+- Multilevel optimization (Walshaw coarsening for initial positions)
+
+```cpp
+namespace Graffodil {
+
+class ForceLayout : public LayoutEngine {
+public:
+    void setCenterForce(qreal f);      // 0.0–0.05, default 0.01
+    void setRepelForce(qreal f);       // 0–5000, default 1500
+    void setLinkForce(qreal f);        // 0.0–0.2, default 0.05
+    void setLinkDistance(qreal d);     // 20–300, default 100
+
+    bool tick() override;
+    bool isIterative() const override { return true; }
+    bool isConverged() const;
+
+    // Full simulation to convergence (uses multilevel optimization)
+    LayoutResult compute() override;
+
+    // Pin a node in place (e.g., user dragged it during simulation)
+    void pinNode(const QString &id, const QPointF &pos);
+    void unpinNode(const QString &id);
+};
+
+}
+```
+
+### Graffodil::Circular
+
+New, simple layout for small graphs (sync topology use case).
+
+```cpp
+namespace Graffodil {
+
+class CircularLayout : public LayoutEngine {
+public:
+    void setRadius(qreal r);
+    void setCenterNode(const QString &id);  // optional: place one node at center
+    LayoutResult compute() override;
+    bool isIterative() const override { return false; }
+};
+
+}
+```
+
+---
+
+## Batch Rendering Module
+
+Optional `Graffodil::Batch` for high-node-count scenes. Transplanted from Corbomite's ForceGraph batch rendering pipeline.
+
+```cpp
+namespace Graffodil {
+
+class BatchRenderer : public QObject {
+    Q_OBJECT
+public:
+    explicit BatchRenderer(GraphScene *scene);
+
+    // Switch between batch mode (single-paint-call, no per-item interaction)
+    // and individual mode (standard QGraphicsItems, full interaction).
+    // Consumer decides when: e.g., batch during simulation, individual when stable.
+    void setBatchMode(bool enabled);
+    bool isBatchMode() const;
+
+    // Convenience: auto-switch at threshold. Set 0 to disable.
+    void setAutoThreshold(int nodeCount);
+
+    // Rebuild batch data from current scene state.
+    // Call after applyLayout() or node moves.
+    void synchronize();
+
+    // LOD thresholds for progressive detail reduction at zoom levels.
+    void setLodThresholds(qreal hideEdges, qreal hideLabels, qreal hideNodes);
+};
+
+// Independently usable spatial acceleration structures.
+
+// Fixed-grid spatial index for viewport culling. Header-only, zero dependencies.
+class SpatialGrid {
+public:
+    void rebuild(const QVector<QPointF> &positions, const QRectF &bounds);
+    QVector<int> query(const QRectF &viewport) const;
+};
+
+// Barnes-Hut quadtree. Used by Force layout for O(n log n) repulsion.
+// Also usable for any spatial mass/charge simulation.
+class QuadTree {
+public:
+    void build(const QVector<QPointF> &positions, const QVector<qreal> &masses);
+    QPointF computeRepulsion(const QPointF &pos, qreal mass, qreal theta) const;
+};
+
+}
+```
+
+---
+
+## Utility Widgets (in Core)
+
+### GraphMinimap
+
+Transplanted from PlanStan `libs/graph/src/graphminimap.cpp` (147 LOC).
+
+Small overlay rendering a scaled scene thumbnail with a draggable viewport rectangle.
+
+```cpp
+namespace Graffodil {
+
+class GraphMinimap : public QWidget {
+    Q_OBJECT
+public:
+    explicit GraphMinimap(QGraphicsView *parent);
+    void setEnabled(bool visible);
+    // Renders automatically from scene changes.
+};
+
+}
+```
+
+### AnchorHighlight
+
+Visual feedback during edge creation — shows available connection points when hovering near a node.
+
+```cpp
+namespace Graffodil {
+
+class AnchorHighlight : public QGraphicsItem {
+public:
+    void showAnchors(IGraphNode *node);
+    void hideAnchors();
+    void setActiveAnchor(Side side);
+};
+
+}
+```
+
+### ConnectorItem
+
+Transplanted from PlanStan `libs/graph/src/connectoritem.cpp` (36 LOC). Small circle drawn at edge waypoints/junctions.
+
+```cpp
+namespace Graffodil {
+
+class ConnectorItem : public QGraphicsEllipseItem {
+public:
+    ConnectorItem(const QPointF &pos, qreal radius = 4.5);
+};
+
+}
+```
+
+---
+
+## Directory Structure
+
+```
+Graffodil/
+├── CMakeLists.txt
+├── src/
+│   ├── core/
+│   │   ├── CMakeLists.txt                  # Graffodil::Core
+│   │   ├── include/graffodil/
+│   │   │   ├── IGraphNode.h
+│   │   │   ├── IGraphEdge.h
+│   │   │   ├── GraphScene.h
+│   │   │   ├── GraphTool.h
+│   │   │   ├── GraphEdgeItem.h
+│   │   │   ├── EdgePathStrategy.h
+│   │   │   ├── TerminusStyle.h
+│   │   │   ├── LayoutResult.h
+│   │   │   ├── GraphMinimap.h
+│   │   │   ├── AnchorHighlight.h
+│   │   │   └── ConnectorItem.h
+│   │   └── src/
+│   ├── sugiyama/
+│   │   ├── CMakeLists.txt                  # Graffodil::Sugiyama
+│   │   ├── include/graffodil/
+│   │   │   └── SugiyamaLayout.h
+│   │   └── src/
+│   ├── force/
+│   │   ├── CMakeLists.txt                  # Graffodil::Force
+│   │   ├── include/graffodil/
+│   │   │   ├── ForceLayout.h
+│   │   │   └── MultilevelLayout.h
+│   │   └── src/
+│   ├── circular/
+│   │   ├── CMakeLists.txt                  # Graffodil::Circular
+│   │   ├── include/graffodil/
+│   │   │   └── CircularLayout.h
+│   │   └── src/
+│   └── batch/
+│       ├── CMakeLists.txt                  # Graffodil::Batch
+│       ├── include/graffodil/
+│       │   ├── BatchRenderer.h
+│       │   ├── SpatialGrid.h               # header-only
+│       │   └── QuadTree.h
+│       └── src/
+└── tests/
+    ├── tst_graphscene.cpp
+    ├── tst_edgepathstrategies.cpp
+    ├── tst_terminus.cpp
+    ├── tst_sugiyama.cpp
+    ├── tst_forcelayout.cpp
+    └── tst_benchmark_batch.cpp
+```
+
+All public headers install under `graffodil/` — includes are `#include <graffodil/GraphScene.h>` regardless of component.
+
+Supports `PROJECT_IS_TOP_LEVEL` for standalone builds and exports `Graffodil::*` alias targets for in-tree `add_subdirectory()` during development.
+
+---
+
+## Boundary Map
+
+What stays where after adoption:
+
+| Component | Location | Consumes |
+|-----------|----------|----------|
+| `IGraphNode`, `IGraphEdge`, `GraphScene`, tools, `GraphEdgeItem`, path strategies, terminus styles, minimap, anchor highlight, connector | **Graffodil::Core** | Qt6::Widgets |
+| `SugiyamaLayout` (spine alignment) | **Graffodil::Sugiyama** | Graffodil::Core |
+| `ForceLayout`, `MultilevelLayout` | **Graffodil::Force** | Graffodil::Core |
+| `CircularLayout` | **Graffodil::Circular** | Graffodil::Core |
+| `BatchRenderer`, `SpatialGrid`, `QuadTree` | **Graffodil::Batch** | Graffodil::Core |
+| `DependencyGraph` (CPM engine) | **PlanStan `libs/scheduling/`** | unchanged |
+| `GraphNodeItem`, `PlanningColorScheme`, `RelationEditorWidget` | **PlanStan `libs/graph/`** | Graffodil::Core + Sugiyama |
+| `GanttArrowRouter`, `GanttArrowItem` | **PlanStan `libs/gantt/`** | arrowhead math only |
+| Sync topology widget | **PlanStan** (new) | Graffodil::Core + Circular |
+| `ForceGraphNode`, `GraphDataBuilder`, `GraphViewTab` | **Corbomite** | Graffodil::Core + Force + Batch |
+| `TextCardItem`, `FileCardItem`, `CanvasDocument` | **Corbomite** | Graffodil::Core |
+
+---
+
+## Testing Strategy
+
+- **Unit tests per module:** Scene registry operations, edge path computation (verify QPainterPath geometry), terminus rendering (verify inset points), tool event sequences
+- **Layout tests:** Transplant existing test suites from PlanStan (`tst_dependencygraph.cpp` layout portions) and Corbomite (`tst_forcelayout.cpp`, `tst_quadtree.cpp`, `tst_benchmark_layout.cpp`)
+- **Integration tests:** Build a minimal graph (5 nodes, 5 edges), apply each layout engine, verify no overlapping nodes and all edges connect to correct anchors
+- **Benchmark tests:** Batch rendering with 10K nodes (transplant from Corbomite's benchmarks), Sugiyama with 500-node graphs
+
+---
+
+## Migration Path
+
+The library is built and validated independently, then existing code is migrated incrementally:
+
+1. **Build Graffodil** with transplanted implementations, passing its own test suite
+2. **Sync topology widget** — build from scratch on Graffodil (proves the framework on a greenfield consumer)
+3. **Corbomite Canvas** — migrate to Graffodil::Core (lightest existing consumer, already well-isolated)
+4. **Corbomite ForceGraph** — migrate to Graffodil::Core + Force + Batch (largest migration, validates performance)
+5. **PlanStan PERT graph** — migrate to Graffodil::Core + Sugiyama (most complex consumer, validates layout fidelity)
+6. **PlanStan Gantt** — adopt arrowhead utilities only (minimal change)
