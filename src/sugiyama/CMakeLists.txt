@@ -5,4 +5,8 @@ target_include_directories(graffodil-sugiyama
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 target_link_libraries(graffodil-sugiyama PUBLIC Graffodil::Core)
-target_sources(graffodil-sugiyama PRIVATE src/placeholder.cpp)
+
+target_sources(graffodil-sugiyama PRIVATE
+    src/SugiyamaLayout.cpp
+    include/graffodil/SugiyamaLayout.h
+)

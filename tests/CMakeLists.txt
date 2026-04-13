@@ -28,3 +28,8 @@ add_executable(tst_circular tst_circular.cpp)
 target_link_libraries(tst_circular PRIVATE Graffodil::Circular Qt6::Test)
 target_include_directories(tst_circular PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_circular COMMAND tst_circular)
+
+add_executable(tst_sugiyama tst_sugiyama.cpp)
+target_link_libraries(tst_sugiyama PRIVATE Graffodil::Sugiyama Qt6::Test)
+target_include_directories(tst_sugiyama PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME tst_sugiyama COMMAND tst_sugiyama)
