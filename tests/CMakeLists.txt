@@ -46,3 +46,8 @@ add_executable(tst_forcelayout tst_forcelayout.cpp)
 target_link_libraries(tst_forcelayout PRIVATE Graffodil::Force Qt6::Test)
 target_include_directories(tst_forcelayout PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_forcelayout COMMAND tst_forcelayout)
+
+add_executable(tst_batchrenderer tst_batchrenderer.cpp)
+target_link_libraries(tst_batchrenderer PRIVATE Graffodil::Batch Qt6::Test)
+target_include_directories(tst_batchrenderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME tst_batchrenderer COMMAND tst_batchrenderer)
