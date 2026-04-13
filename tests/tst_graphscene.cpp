@@ -1,5 +1,7 @@
 #include <QTest>
+#include <QSignalSpy>
 #include "TestHelpers.h"
+#include <graffodil/GraphScene.h>
 
 using namespace Graffodil;
 using namespace Graffodil::Test;
@@ -30,6 +32,79 @@ private slots:
         result.nodePositions["n1"] = {100, 200};
         QCOMPARE(result.nodePositions.size(), 1);
         QCOMPARE(result.nodePositions["n1"], QPointF(100, 200));
+    }
+
+    void testAddRemoveNodes() {
+        GraphScene scene;
+        auto *n1 = new TestNode("n1");
+        auto *n2 = new TestNode("n2");
+
+        scene.addNode(n1);
+        scene.addNode(n2);
+        QCOMPARE(scene.nodes().size(), 2);
+        QCOMPARE(scene.nodeForId("n1"), n1);
+        QCOMPARE(scene.nodeForId("n2"), n2);
+        QVERIFY(scene.nodeForId("n3") == nullptr);
+
+        scene.removeNode("n1");
+        QCOMPARE(scene.nodes().size(), 1);
+        QVERIFY(scene.nodeForId("n1") == nullptr);
+    }
+
+    void testAddRemoveEdges() {
+        GraphScene scene;
+        auto *n1 = new TestNode("n1");
+        auto *n2 = new TestNode("n2");
+        scene.addNode(n1);
+        scene.addNode(n2);
+
+        auto *e1 = new TestEdge("e1", n1, n2);
+        scene.addEdge(e1);
+        QCOMPARE(scene.edges().size(), 1);
+        QCOMPARE(scene.edgeForId("e1"), e1);
+        QCOMPARE(scene.edgeBetween("n1", "n2"), e1);
+        QVERIFY(scene.edgeBetween("n2", "n1") == nullptr);
+
+        scene.removeEdge("e1");
+        QCOMPARE(scene.edges().size(), 0);
+    }
+
+    void testNodeAddedSignal() {
+        GraphScene scene;
+        QSignalSpy spy(&scene, &GraphScene::nodeAdded);
+        auto *n1 = new TestNode("n1");
+        scene.addNode(n1);
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void testApplyLayout() {
+        GraphScene scene;
+        auto *n1 = new TestNode("n1", {0, 0});
+        auto *n2 = new TestNode("n2", {0, 0});
+        scene.addNode(n1);
+        scene.addNode(n2);
+
+        LayoutResult result;
+        result.nodePositions["n1"] = {100, 200};
+        result.nodePositions["n2"] = {300, 400};
+        scene.applyLayout(result);
+
+        QCOMPARE(n1->graphicsItem()->pos(), QPointF(100, 200));
+        QCOMPARE(n2->graphicsItem()->pos(), QPointF(300, 400));
+    }
+
+    void testSelectedNodes() {
+        GraphScene scene;
+        auto *n1 = new TestNode("n1");
+        auto *n2 = new TestNode("n2");
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        n2->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+        scene.addNode(n2);
+
+        n1->graphicsItem()->setSelected(true);
+        QCOMPARE(scene.selectedNodes().size(), 1);
+        QCOMPARE(scene.selectedNodes().first(), n1);
     }
 };
 

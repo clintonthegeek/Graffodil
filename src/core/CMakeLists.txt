@@ -13,6 +13,11 @@ target_include_directories(graffodil-core
 
 target_link_libraries(graffodil-core PUBLIC Qt6::Core Qt6::Widgets)
 
-target_sources(graffodil-core PRIVATE src/placeholder.cpp)
-
-# Sources added incrementally in later tasks
+target_sources(graffodil-core PRIVATE
+    src/GraphScene.cpp
+    include/graffodil/Types.h
+    include/graffodil/IGraphNode.h
+    include/graffodil/IGraphEdge.h
+    include/graffodil/LayoutEngine.h
+    include/graffodil/GraphScene.h
+)
