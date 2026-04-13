@@ -5,4 +5,8 @@ target_include_directories(graffodil-batch
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 target_link_libraries(graffodil-batch PUBLIC Graffodil::Core)
-target_sources(graffodil-batch PRIVATE src/placeholder.cpp)
+target_sources(graffodil-batch PRIVATE
+    src/QuadTree.cpp
+    include/graffodil/QuadTree.h
+    include/graffodil/SpatialGrid.h
+)
