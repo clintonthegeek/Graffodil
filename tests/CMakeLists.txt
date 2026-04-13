@@ -51,3 +51,9 @@ add_executable(tst_batchrenderer tst_batchrenderer.cpp)
 target_link_libraries(tst_batchrenderer PRIVATE Graffodil::Batch Qt6::Test)
 target_include_directories(tst_batchrenderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_batchrenderer COMMAND tst_batchrenderer)
+
+add_executable(tst_integration tst_integration.cpp)
+target_link_libraries(tst_integration PRIVATE
+    Graffodil::Core Graffodil::Circular Qt6::Test)
+target_include_directories(tst_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME tst_integration COMMAND tst_integration)
