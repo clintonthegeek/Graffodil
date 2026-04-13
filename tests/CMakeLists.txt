@@ -41,3 +41,8 @@ add_test(NAME tst_spatialgrid COMMAND tst_spatialgrid)
 add_executable(tst_quadtree tst_quadtree.cpp)
 target_link_libraries(tst_quadtree PRIVATE Graffodil::Batch Qt6::Test)
 add_test(NAME tst_quadtree COMMAND tst_quadtree)
+
+add_executable(tst_forcelayout tst_forcelayout.cpp)
+target_link_libraries(tst_forcelayout PRIVATE Graffodil::Force Qt6::Test)
+target_include_directories(tst_forcelayout PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME tst_forcelayout COMMAND tst_forcelayout)
