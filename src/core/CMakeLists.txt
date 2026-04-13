@@ -17,6 +17,7 @@ target_sources(graffodil-core PRIVATE
     src/GraphScene.cpp
     src/EdgePathStrategy.cpp
     src/TerminusStyle.cpp
+    src/GraphEdgeItem.cpp
     include/graffodil/Types.h
     include/graffodil/IGraphNode.h
     include/graffodil/IGraphEdge.h
@@ -24,4 +25,5 @@ target_sources(graffodil-core PRIVATE
     include/graffodil/GraphScene.h
     include/graffodil/EdgePathStrategy.h
     include/graffodil/TerminusStyle.h
+    include/graffodil/GraphEdgeItem.h
 )
