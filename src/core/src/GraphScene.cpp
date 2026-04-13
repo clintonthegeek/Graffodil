@@ -1,4 +1,5 @@
 #include <graffodil/GraphScene.h>
+#include <graffodil/GraphTool.h>
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IGraphEdge.h>
 #include <QGraphicsSceneMouseEvent>
@@ -79,7 +80,11 @@ QList<IGraphEdge *> GraphScene::edges() const
 
 void GraphScene::setActiveTool(GraphTool *tool)
 {
+    if (m_activeTool)
+        m_activeTool->deactivate();
     m_activeTool = tool;
+    if (m_activeTool)
+        m_activeTool->activate(this);
 }
 
 GraphTool *GraphScene::activeTool() const
@@ -119,22 +124,34 @@ void GraphScene::applyLayout(const LayoutResult &result)
 // Tool dispatch — forward events to active tool if set.
 void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent *e)
 {
-    QGraphicsScene::mousePressEvent(e);
+    if (m_activeTool)
+        m_activeTool->mousePressEvent(e);
+    else
+        QGraphicsScene::mousePressEvent(e);
 }
 
 void GraphScene::mouseMoveEvent(QGraphicsSceneMouseEvent *e)
 {
-    QGraphicsScene::mouseMoveEvent(e);
+    if (m_activeTool)
+        m_activeTool->mouseMoveEvent(e);
+    else
+        QGraphicsScene::mouseMoveEvent(e);
 }
 
 void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *e)
 {
-    QGraphicsScene::mouseReleaseEvent(e);
+    if (m_activeTool)
+        m_activeTool->mouseReleaseEvent(e);
+    else
+        QGraphicsScene::mouseReleaseEvent(e);
 }
 
 void GraphScene::keyPressEvent(QKeyEvent *e)
 {
-    QGraphicsScene::keyPressEvent(e);
+    if (m_activeTool)
+        m_activeTool->keyPressEvent(e);
+    else
+        QGraphicsScene::keyPressEvent(e);
 }
 
 } // namespace Graffodil

@@ -18,3 +18,8 @@ add_executable(tst_graphedgeitem tst_graphedgeitem.cpp)
 target_link_libraries(tst_graphedgeitem PRIVATE Graffodil::Core Qt6::Test)
 target_include_directories(tst_graphedgeitem PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_graphedgeitem COMMAND tst_graphedgeitem)
+
+add_executable(tst_tools tst_tools.cpp)
+target_link_libraries(tst_tools PRIVATE Graffodil::Core Qt6::Test)
+target_include_directories(tst_tools PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME tst_tools COMMAND tst_tools)

@@ -18,6 +18,8 @@ target_sources(graffodil-core PRIVATE
     src/EdgePathStrategy.cpp
     src/TerminusStyle.cpp
     src/GraphEdgeItem.cpp
+    src/GraphTool.cpp
+    src/SelectMoveTool.cpp
     include/graffodil/Types.h
     include/graffodil/IGraphNode.h
     include/graffodil/IGraphEdge.h
@@ -26,4 +28,6 @@ target_sources(graffodil-core PRIVATE
     include/graffodil/EdgePathStrategy.h
     include/graffodil/TerminusStyle.h
     include/graffodil/GraphEdgeItem.h
+    include/graffodil/GraphTool.h
+    include/graffodil/SelectMoveTool.h
 )
