@@ -9,3 +9,7 @@ add_test(NAME tst_graphscene COMMAND tst_graphscene)
 add_executable(tst_edgepathstrategies tst_edgepathstrategies.cpp)
 target_link_libraries(tst_edgepathstrategies PRIVATE Graffodil::Core Qt6::Test)
 add_test(NAME tst_edgepathstrategies COMMAND tst_edgepathstrategies)
+
+add_executable(tst_terminus tst_terminus.cpp)
+target_link_libraries(tst_terminus PRIVATE Graffodil::Core Qt6::Test)
+add_test(NAME tst_terminus COMMAND tst_terminus)
