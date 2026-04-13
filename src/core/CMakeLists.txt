@@ -23,6 +23,8 @@ target_sources(graffodil-core PRIVATE
     src/CreateEdgeTool.cpp
     src/PanZoomTool.cpp
     src/AnchorHighlight.cpp
+    src/GraphMinimap.cpp
+    src/ConnectorItem.cpp
     include/graffodil/Types.h
     include/graffodil/IGraphNode.h
     include/graffodil/IGraphEdge.h
@@ -36,4 +38,6 @@ target_sources(graffodil-core PRIVATE
     include/graffodil/CreateEdgeTool.h
     include/graffodil/PanZoomTool.h
     include/graffodil/AnchorHighlight.h
+    include/graffodil/GraphMinimap.h
+    include/graffodil/ConnectorItem.h
 )
