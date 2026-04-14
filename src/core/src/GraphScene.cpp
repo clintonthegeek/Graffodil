@@ -2,6 +2,7 @@
 #include <graffodil/GraphTool.h>
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IGraphEdge.h>
+#include <graffodil/GraphEdgeItem.h>
 #include <QGraphicsSceneMouseEvent>
 #include <QKeyEvent>
 
@@ -118,6 +119,26 @@ void GraphScene::applyLayout(const LayoutResult &result)
          it != result.nodePositions.constEnd(); ++it) {
         if (auto *node = nodeForId(it.key()))
             node->graphicsItem()->setPos(it.value());
+    }
+    adjustAllEdges();
+}
+
+void GraphScene::adjustEdgesForNode(const QString &nodeId)
+{
+    for (auto *edge : m_edges) {
+        if (edge->sourceNode()->nodeId() == nodeId
+            || edge->targetNode()->nodeId() == nodeId) {
+            if (auto *item = dynamic_cast<GraphEdgeItem *>(edge))
+                item->adjust();
+        }
+    }
+}
+
+void GraphScene::adjustAllEdges()
+{
+    for (auto *edge : m_edges) {
+        if (auto *item = dynamic_cast<GraphEdgeItem *>(edge))
+            item->adjust();
     }
 }
 

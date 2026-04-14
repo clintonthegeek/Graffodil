@@ -72,30 +72,25 @@ void GraphEdgeItem::adjust()
     setPath(path);
 }
 
+QRectF GraphEdgeItem::boundingRect() const
+{
+    // Expand the path's bounding rect to include terminus shapes,
+    // so the full edge (including arrowheads) is invalidated on change.
+    QRectF r = QGraphicsPathItem::boundingRect();
+    qreal margin = 0;
+    if (m_sourceTerminus)
+        margin = qMax(margin, m_sourceTerminus->size());
+    if (m_targetTerminus)
+        margin = qMax(margin, m_targetTerminus->size());
+    return r.adjusted(-margin, -margin, margin, margin);
+}
+
 void GraphEdgeItem::paint(QPainter *painter,
                           const QStyleOptionGraphicsItem *option,
                           QWidget *widget)
 {
     Q_UNUSED(option);
     Q_UNUSED(widget);
-
-    if (!m_strategy || !m_source || !m_target)
-        return;
-
-    // Auto-adjust: recompute path from current node positions every paint.
-    // This ensures edges follow nodes during drag without requiring explicit
-    // adjust() calls from consumers.
-    const QPointF srcAnchor = m_source->anchorPoint(m_sourceSide);
-    const QPointF tgtAnchor = m_target->anchorPoint(m_targetSide);
-
-    if (srcAnchor != m_lastSrcAnchor || tgtAnchor != m_lastTgtAnchor) {
-        m_lastSrcAnchor = srcAnchor;
-        m_lastTgtAnchor = tgtAnchor;
-        prepareGeometryChange();
-        QPainterPath p = m_strategy->computePath(
-            srcAnchor, m_sourceSide, tgtAnchor, m_targetSide, m_waypoints);
-        setPath(p);
-    }
 
     if (path().isEmpty())
         return;
@@ -118,16 +113,17 @@ void GraphEdgeItem::paint(QPainter *painter,
     // so arrowheads align with the actual curve direction (not the
     // straight line from source to target).
     const QPainterPath &p = path();
+    const qreal len = qMax(p.length(), 1.0);
+    const QPointF srcAnchor = p.pointAtPercent(0.0);
+    const QPointF tgtAnchor = p.pointAtPercent(1.0);
 
     if (m_sourceTerminus) {
-        // "from" direction for source = a point slightly along the path from the start
-        QPointF fromDir = p.pointAtPercent(qMin(0.05, 10.0 / qMax(p.length(), 1.0)));
+        QPointF fromDir = p.pointAtPercent(qMin(0.05, 10.0 / len));
         m_sourceTerminus->draw(painter, srcAnchor, fromDir, edgePen);
     }
 
     if (m_targetTerminus) {
-        // "from" direction for target = a point slightly before the end of the path
-        QPointF fromDir = p.pointAtPercent(qMax(0.95, 1.0 - 10.0 / qMax(p.length(), 1.0)));
+        QPointF fromDir = p.pointAtPercent(qMax(0.95, 1.0 - 10.0 / len));
         m_targetTerminus->draw(painter, tgtAnchor, fromDir, edgePen);
     }
 }

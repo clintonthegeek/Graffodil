@@ -68,6 +68,7 @@ void SelectMoveTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
     QPointF delta = event->scenePos() - event->lastScenePos();
     QPointF newPos = m_dragNode->graphicsItem()->pos() + delta;
     m_dragNode->graphicsItem()->setPos(newPos);
+    m_scene->adjustEdgesForNode(m_dragNode->nodeId());
 }
 
 void SelectMoveTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)

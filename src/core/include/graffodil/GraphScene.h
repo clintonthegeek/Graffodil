@@ -38,6 +38,14 @@ public:
     // --- Layout ---
     void applyLayout(const LayoutResult &result);
 
+    /// Recompute paths for all edges connected to the given node.
+    /// Call this after moving a node so edges follow correctly.
+    /// The built-in SelectMoveTool and Force layout call this automatically.
+    void adjustEdgesForNode(const QString &nodeId);
+
+    /// Recompute paths for all edges in the scene.
+    void adjustAllEdges();
+
 signals:
     void nodeAdded(IGraphNode *node);
     void nodeRemoved(const QString &id);

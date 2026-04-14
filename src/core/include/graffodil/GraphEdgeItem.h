@@ -37,6 +37,8 @@ public:
     Side sourceSide() const { return m_sourceSide; }
     Side targetSide() const { return m_targetSide; }
 
+    QRectF boundingRect() const override;
+
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
                QWidget *widget) override;
@@ -51,8 +53,6 @@ private:
     std::unique_ptr<TerminusStyle> m_sourceTerminus;
     std::unique_ptr<TerminusStyle> m_targetTerminus;
     QList<QPointF> m_waypoints;
-    QPointF m_lastSrcAnchor;
-    QPointF m_lastTgtAnchor;
     bool m_highlighted = false;
 };
 
