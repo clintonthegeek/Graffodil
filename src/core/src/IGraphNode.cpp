@@ -1,4 +1,5 @@
 #include <graffodil/IGraphNode.h>
+#include <graffodil/Logging.h>
 #include <QLineF>
 #include <limits>
 
@@ -24,6 +25,11 @@ Anchor IGraphNode::anchor(const QString &id) const
         if (a.id == id)
             return a;
     }
+    qCWarning(lcGraffodil).nospace()
+        << "IGraphNode::anchor: node '" << nodeId()
+        << "' has no anchor with id '" << id
+        << "'. Returning a default (0,0) anchor. "
+        << "(Pass an empty id to request dynamic swivel resolution.)";
     return {};
 }
 
