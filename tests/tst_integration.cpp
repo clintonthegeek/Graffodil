@@ -7,6 +7,7 @@
 #include <graffodil/SelectMoveTool.h>
 #include <graffodil/CreateEdgeTool.h>
 #include <graffodil/PanZoomTool.h>
+#include <graffodil/Anchors.h>
 #include "TestHelpers.h"
 #include <cmath>
 
@@ -31,7 +32,7 @@ private slots:
         // Add edges with bezier strategy and triangle terminus
         for (int i = 0; i < 4; ++i) {
             auto *edge = new GraphEdgeItem(
-                nodes[i], Side::Right, nodes[i + 1], Side::Left,
+                nodes[i], AnchorIds::Right, nodes[i + 1], AnchorIds::Left,
                 new BezierPathStrategy);
             edge->setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
             scene.addEdge(edge);

@@ -3,6 +3,7 @@
 #include <graffodil/EdgePathStrategy.h>
 #include <graffodil/TerminusStyle.h>
 #include <graffodil/GraphScene.h>
+#include <graffodil/Anchors.h>
 #include "TestHelpers.h"
 
 using namespace Graffodil;
@@ -14,7 +15,7 @@ private slots:
     void edgeImplementsInterface() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
         auto *strategy = new DirectPathStrategy;
-        GraphEdgeItem edge(&src, Side::Right, &tgt, Side::Left, strategy);
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left, strategy);
 
         QVERIFY(!edge.edgeId().isEmpty());
         QCOMPARE(edge.sourceNode(), static_cast<IGraphNode *>(&src));
@@ -25,7 +26,7 @@ private slots:
     void adjustUpdatesPath() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
         auto *strategy = new DirectPathStrategy;
-        GraphEdgeItem edge(&src, Side::Right, &tgt, Side::Left, strategy);
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left, strategy);
 
         edge.adjust();
         QVERIFY(!edge.path().isEmpty());
@@ -41,7 +42,7 @@ private slots:
     void setPathStrategyChangesShape() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 100});
         auto *direct = new DirectPathStrategy;
-        GraphEdgeItem edge(&src, Side::Right, &tgt, Side::Left, direct);
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left, direct);
         edge.adjust();
         int directElements = edge.path().elementCount();
 
@@ -56,7 +57,7 @@ private slots:
     void terminusOwnership() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
         auto *strategy = new DirectPathStrategy;
-        GraphEdgeItem edge(&src, Side::Right, &tgt, Side::Left, strategy);
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left, strategy);
 
         edge.setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
         edge.setTerminus(ArrowEnd::Source, std::make_unique<NoTerminus>());
@@ -72,7 +73,7 @@ private slots:
         scene.addNode(tgt);
 
         auto *strategy = new DirectPathStrategy;
-        auto *edge = new GraphEdgeItem(src, Side::Right, tgt, Side::Left, strategy);
+        auto *edge = new GraphEdgeItem(src, AnchorIds::Right, tgt, AnchorIds::Left, strategy);
         scene.addEdge(edge);
 
         QCOMPARE(scene.edges().size(), 1);

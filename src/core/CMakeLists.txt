@@ -15,6 +15,8 @@ target_link_libraries(graffodil-core PUBLIC Qt6::Core Qt6::Widgets)
 
 target_sources(graffodil-core PRIVATE
     src/GraphScene.cpp
+    src/IGraphNode.cpp
+    src/Anchors.cpp
     src/EdgePathStrategy.cpp
     src/TerminusStyle.cpp
     src/GraphEdgeItem.cpp
@@ -29,6 +31,7 @@ target_sources(graffodil-core PRIVATE
     src/ConnectorItem.cpp
     include/graffodil/Types.h
     include/graffodil/IGraphNode.h
+    include/graffodil/Anchors.h
     include/graffodil/IGraphEdge.h
     include/graffodil/LayoutEngine.h
     include/graffodil/GraphScene.h

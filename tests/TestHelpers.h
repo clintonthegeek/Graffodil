@@ -2,14 +2,15 @@
 
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IGraphEdge.h>
+#include <graffodil/Anchors.h>
 #include <QGraphicsRectItem>
 
 namespace Graffodil::Test {
 
-/// Minimal IGraphNode for testing. A 100x60 rectangle.
+/// Minimal IGraphNode for testing. A 100x60 rectangle with 4 compass anchors.
 class TestNode : public QGraphicsRectItem, public IGraphNode {
 public:
-    explicit TestNode(const QString &id, const QPointF &pos = {})
+    explicit TestNode(const QString &id = {}, const QPointF &pos = {})
         : QGraphicsRectItem(0, 0, 100, 60), m_id(id)
     {
         setPos(pos);
@@ -17,15 +18,9 @@ public:
 
     QString nodeId() const override { return m_id; }
 
-    QPointF anchorPoint(Side side) const override {
-        const QRectF r = mapToScene(rect()).boundingRect();
-        switch (side) {
-        case Side::Top:    return {r.center().x(), r.top()};
-        case Side::Bottom: return {r.center().x(), r.bottom()};
-        case Side::Left:   return {r.left(), r.center().y()};
-        case Side::Right:  return {r.right(), r.center().y()};
-        }
-        Q_UNREACHABLE();
+    QList<Anchor> anchors() const override
+    {
+        return compassAnchors(mapToScene(rect()).boundingRect());
     }
 
     QRectF nodeBoundingRect() const override { return mapToScene(rect()).boundingRect(); }

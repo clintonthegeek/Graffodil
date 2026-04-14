@@ -2,18 +2,25 @@
 
 #include <graffodil/Types.h>
 #include <QGraphicsItem>
+#include <QString>
 
 namespace Graffodil {
 
 class IGraphNode;
 
+/// Visual feedback for which anchor of a node the cursor is closest to.
+/// Draws a dot for each of the node's anchors; the "active" anchor (id
+/// matches m_activeAnchorId) is rendered more prominently.
 class AnchorHighlight : public QGraphicsItem {
 public:
     AnchorHighlight();
 
     void showAnchors(IGraphNode *node);
     void hideAnchors();
-    void setActiveAnchor(Side side);
+
+    /// Highlight the anchor with this id (if the current node has one
+    /// matching). Pass an empty string for "no active anchor".
+    void setActiveAnchor(const QString &anchorId);
 
     QRectF boundingRect() const override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
@@ -21,7 +28,7 @@ public:
 
 private:
     IGraphNode *m_node = nullptr;
-    Side m_activeSide = Side::Right;
+    QString m_activeAnchorId;
     bool m_visible = false;
     static constexpr qreal kDotRadius = 5.0;
 };

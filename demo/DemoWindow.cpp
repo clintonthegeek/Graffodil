@@ -3,6 +3,7 @@
 #include <graffodil/GraphScene.h>
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IGraphEdge.h>
+#include <graffodil/Anchors.h>
 #include <graffodil/GraphEdgeItem.h>
 #include <graffodil/EdgePathStrategy.h>
 #include <graffodil/TerminusStyle.h>
@@ -60,15 +61,8 @@ public:
 
     QString nodeId() const override { return m_id; }
 
-    QPointF anchorPoint(Side side) const override {
-        const QRectF r = mapToScene(rect()).boundingRect();
-        switch (side) {
-        case Side::Top:    return {r.center().x(), r.top()};
-        case Side::Bottom: return {r.center().x(), r.bottom()};
-        case Side::Left:   return {r.left(), r.center().y()};
-        case Side::Right:  return {r.right(), r.center().y()};
-        }
-        Q_UNREACHABLE();
+    QList<Anchor> anchors() const override {
+        return compassAnchors(mapToScene(rect()).boundingRect());
     }
 
     QRectF nodeBoundingRect() const override {
@@ -136,9 +130,10 @@ DemoWindow::DemoWindow(QWidget *parent)
 
     // Wire edge creation: when the tool emits edgeRequested, create a GraphEdgeItem
     connect(m_createEdgeTool, &CreateEdgeTool::edgeRequested,
-            this, [this](IGraphNode *source, Side sourceSide,
-                         IGraphNode *target, Side targetSide) {
-        auto *edge = new GraphEdgeItem(source, sourceSide, target, targetSide,
+            this, [this](IGraphNode *source, const QString &sourceAnchorId,
+                         IGraphNode *target, const QString &targetAnchorId) {
+        auto *edge = new GraphEdgeItem(source, sourceAnchorId,
+                                        target, targetAnchorId,
                                         new BezierPathStrategy);
         edge->setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
         m_scene->addEdge(edge);
@@ -386,7 +381,7 @@ void DemoWindow::generateGraph()
         for (int j = i + 1; j < count; ++j) {
             if (rng->generateDouble() < density) {
                 auto *edge = new GraphEdgeItem(
-                    nodes[i], Side::Right, nodes[j], Side::Left,
+                    nodes[i], AnchorIds::Right, nodes[j], AnchorIds::Left,
                     new BezierPathStrategy);
                 edge->setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
                 m_scene->addEdge(edge);

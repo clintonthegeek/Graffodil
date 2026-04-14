@@ -9,14 +9,14 @@
 
 namespace Graffodil {
 
-GraphEdgeItem::GraphEdgeItem(IGraphNode *source, Side sourceSide,
-                             IGraphNode *target, Side targetSide,
+GraphEdgeItem::GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
+                             IGraphNode *target, const QString &targetAnchorId,
                              EdgePathStrategy *strategy)
     : m_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
     , m_source(source)
     , m_target(target)
-    , m_sourceSide(sourceSide)
-    , m_targetSide(targetSide)
+    , m_sourceAnchorId(sourceAnchorId)
+    , m_targetAnchorId(targetAnchorId)
     , m_strategy(strategy)
 {
     setFlag(ItemIsSelectable);
@@ -64,7 +64,7 @@ void GraphEdgeItem::setWaypoints(const QList<QPointF> &waypoints)
 void GraphEdgeItem::reverse()
 {
     std::swap(m_source, m_target);
-    std::swap(m_sourceSide, m_targetSide);
+    std::swap(m_sourceAnchorId, m_targetAnchorId);
     // Terminus styles stay attached to their ends (source-end vs target-end
     // as semantic ends, not endpoints), so swap them to preserve visual intent.
     std::swap(m_sourceTerminus, m_targetTerminus);
@@ -78,6 +78,33 @@ void GraphEdgeItem::reverse()
     adjust();
 }
 
+Anchor GraphEdgeItem::resolveSourceAnchor() const
+{
+    if (m_sourceAnchorId.isEmpty()) {
+        // Dynamic — toward the target's current position.
+        const QPointF towards = m_target
+            ? (m_targetAnchorId.isEmpty()
+                ? m_target->nodeBoundingRect().center()
+                : m_target->anchor(m_targetAnchorId).scenePos)
+            : QPointF();
+        return m_source->anchorToward(towards);
+    }
+    return m_source->anchor(m_sourceAnchorId);
+}
+
+Anchor GraphEdgeItem::resolveTargetAnchor() const
+{
+    if (m_targetAnchorId.isEmpty()) {
+        // Dynamic — toward the source's current position. Use the source's
+        // resolved anchor (which may itself have been dynamic) for best fit.
+        const QPointF towards = m_source
+            ? resolveSourceAnchor().scenePos
+            : QPointF();
+        return m_target->anchorToward(towards);
+    }
+    return m_target->anchor(m_targetAnchorId);
+}
+
 void GraphEdgeItem::adjust()
 {
     if (!m_strategy || !m_source || !m_target)
@@ -85,12 +112,10 @@ void GraphEdgeItem::adjust()
 
     prepareGeometryChange();
 
-    const QPointF srcAnchor = m_source->anchorPoint(m_sourceSide);
-    const QPointF tgtAnchor = m_target->anchorPoint(m_targetSide);
+    const Anchor src = resolveSourceAnchor();
+    const Anchor tgt = resolveTargetAnchor();
 
-    QPainterPath path = m_strategy->computePath(
-        srcAnchor, m_sourceSide, tgtAnchor, m_targetSide, m_waypoints);
-
+    QPainterPath path = m_strategy->computePath(src, tgt, m_waypoints);
     setPath(path);
 }
 
@@ -109,9 +134,6 @@ QRectF GraphEdgeItem::boundingRect() const
 
 QPainterPath GraphEdgeItem::shape() const
 {
-    // Stroke the path with a fixed hit-width independent of pen width.
-    // This gives a predictable, narrow clickable area along the curve
-    // regardless of path strategy or visual line thickness.
     if (path().isEmpty())
         return {};
     QPainterPathStroker stroker;
@@ -146,8 +168,6 @@ void GraphEdgeItem::paint(QPainter *painter,
         edgePen.setWidthF(edgePen.widthF() + 1.0);
     }
     if (isSelected()) {
-        // Distinct selection color — pen width is increased so selection
-        // reads clearly regardless of the underlying edge color.
         edgePen.setColor(QColor(0, 120, 215));
         edgePen.setWidthF(qMax(edgePen.widthF(), 1.0) + 1.5);
     }
@@ -156,22 +176,20 @@ void GraphEdgeItem::paint(QPainter *painter,
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(path());
 
-    // Draw terminus styles using the path tangent at each endpoint,
-    // so arrowheads align with the actual curve direction (not the
-    // straight line from source to target).
+    // Draw terminus styles using the path tangent at each endpoint.
     const QPainterPath &p = path();
     const qreal len = qMax(p.length(), 1.0);
-    const QPointF srcAnchor = p.pointAtPercent(0.0);
-    const QPointF tgtAnchor = p.pointAtPercent(1.0);
+    const QPointF srcPos = p.pointAtPercent(0.0);
+    const QPointF tgtPos = p.pointAtPercent(1.0);
 
     if (m_sourceTerminus) {
         QPointF fromDir = p.pointAtPercent(qMin(0.05, 10.0 / len));
-        m_sourceTerminus->draw(painter, srcAnchor, fromDir, edgePen);
+        m_sourceTerminus->draw(painter, srcPos, fromDir, edgePen);
     }
 
     if (m_targetTerminus) {
         QPointF fromDir = p.pointAtPercent(qMax(0.95, 1.0 - 10.0 / len));
-        m_targetTerminus->draw(painter, tgtAnchor, fromDir, edgePen);
+        m_targetTerminus->draw(painter, tgtPos, fromDir, edgePen);
     }
 }
 

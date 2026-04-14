@@ -1,19 +1,31 @@
 #include <QTest>
 #include <graffodil/EdgePathStrategy.h>
+#include <graffodil/Anchors.h>
 
 using namespace Graffodil;
+
+// Helper to build compass anchors at a point.
+static Anchor anchorAt(const QPointF &p, const QPointF &outwardDir,
+                       const QString &id = "test")
+{
+    Anchor a;
+    a.id = id;
+    a.scenePos = p;
+    a.outwardDirection = outwardDir;
+    return a;
+}
 
 class TestEdgePathStrategies : public QObject {
     Q_OBJECT
 private slots:
     void directPath() {
         DirectPathStrategy strategy;
-        QPointF src(0, 0), tgt(100, 0);
-        auto path = strategy.computePath(src, Side::Right, tgt, Side::Left);
+        Anchor src = anchorAt({0, 0}, {1, 0});   // facing right
+        Anchor tgt = anchorAt({100, 0}, {-1, 0}); // facing left
+        auto path = strategy.computePath(src, tgt);
         QVERIFY(!path.isEmpty());
         QCOMPARE(path.elementAt(0).x, 0.0);
         QCOMPARE(path.elementAt(0).y, 0.0);
-        // Direct path ends at target
         auto last = path.elementAt(path.elementCount() - 1);
         QCOMPARE(last.x, 100.0);
         QCOMPARE(last.y, 0.0);
@@ -21,10 +33,10 @@ private slots:
 
     void bezierPath() {
         BezierPathStrategy strategy;
-        QPointF src(0, 0), tgt(200, 0);
-        auto path = strategy.computePath(src, Side::Right, tgt, Side::Left);
+        Anchor src = anchorAt({0, 0}, {1, 0});
+        Anchor tgt = anchorAt({200, 0}, {-1, 0});
+        auto path = strategy.computePath(src, tgt);
         QVERIFY(!path.isEmpty());
-        // Bezier path has cubic elements (not just lineTo)
         bool hasCubic = false;
         for (int i = 0; i < path.elementCount(); ++i) {
             if (path.elementAt(i).type == QPainterPath::CurveToElement)
@@ -35,21 +47,19 @@ private slots:
 
     void bezierCurvatureCapped() {
         BezierPathStrategy strategy;
-        // Very far apart — curvature should cap at 80.0
-        QPointF src(0, 0), tgt(1000, 0);
-        auto path = strategy.computePath(src, Side::Right, tgt, Side::Left);
-        // Control point should be at most 80px from source
-        // Element 1 is the first control point of cubicTo
+        Anchor src = anchorAt({0, 0}, {1, 0});
+        Anchor tgt = anchorAt({1000, 0}, {-1, 0});
+        auto path = strategy.computePath(src, tgt);
         auto ctrl1 = path.elementAt(1);
         QVERIFY(ctrl1.x <= 80.0 + 0.1);
     }
 
     void orthogonalPath() {
         OrthogonalPathStrategy strategy;
-        QPointF src(0, 50), tgt(200, 150);
-        auto path = strategy.computePath(src, Side::Right, tgt, Side::Left);
+        Anchor src = anchorAt({0, 50}, {1, 0});
+        Anchor tgt = anchorAt({200, 150}, {-1, 0});
+        auto path = strategy.computePath(src, tgt);
         QVERIFY(!path.isEmpty());
-        // Orthogonal: all segments are axis-aligned
         for (int i = 1; i < path.elementCount(); ++i) {
             auto prev = path.elementAt(i - 1);
             auto cur = path.elementAt(i);
@@ -65,11 +75,11 @@ private slots:
 
     void polylineThroughWaypoints() {
         PolylinePathStrategy strategy;
-        QPointF src(0, 0), tgt(300, 0);
+        Anchor src = anchorAt({0, 0}, {1, 0});
+        Anchor tgt = anchorAt({300, 0}, {-1, 0});
         QList<QPointF> waypoints = {{100, 50}, {200, 50}};
-        auto path = strategy.computePath(src, Side::Right, tgt, Side::Left, waypoints);
+        auto path = strategy.computePath(src, tgt, waypoints);
         QVERIFY(!path.isEmpty());
-        // Should pass through waypoints
         bool found100 = false, found200 = false;
         for (int i = 0; i < path.elementCount(); ++i) {
             auto e = path.elementAt(i);

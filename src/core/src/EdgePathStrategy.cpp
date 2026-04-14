@@ -6,47 +6,34 @@ namespace Graffodil {
 // --- DirectPathStrategy ---
 
 QPainterPath DirectPathStrategy::computePath(
-    const QPointF &sourceAnchor, Side /*sourceSide*/,
-    const QPointF &targetAnchor, Side /*targetSide*/,
+    const Anchor &source, const Anchor &target,
     const QList<QPointF> &/*waypoints*/)
 {
     QPainterPath path;
-    path.moveTo(sourceAnchor);
-    path.lineTo(targetAnchor);
+    path.moveTo(source.scenePos);
+    path.lineTo(target.scenePos);
     return path;
 }
 
 // --- BezierPathStrategy ---
 // Curvature formula: min(distance * 0.4, 80.0).
-// Control points extend outward from connection side.
-
-static QPointF controlPointOffset(Side side, double curvature)
-{
-    switch (side) {
-    case Side::Right:  return {curvature, 0};
-    case Side::Left:   return {-curvature, 0};
-    case Side::Bottom: return {0, curvature};
-    case Side::Top:    return {0, -curvature};
-    }
-    Q_UNREACHABLE();
-}
+// Control points extend along each anchor's outwardDirection.
 
 QPainterPath BezierPathStrategy::computePath(
-    const QPointF &sourceAnchor, Side sourceSide,
-    const QPointF &targetAnchor, Side targetSide,
+    const Anchor &source, const Anchor &target,
     const QList<QPointF> &/*waypoints*/)
 {
-    const double dx = targetAnchor.x() - sourceAnchor.x();
-    const double dy = targetAnchor.y() - sourceAnchor.y();
+    const double dx = target.scenePos.x() - source.scenePos.x();
+    const double dy = target.scenePos.y() - source.scenePos.y();
     const double dist = std::sqrt(dx * dx + dy * dy);
     const double curvature = std::min(dist * 0.4, 80.0);
 
-    const QPointF ctrl1 = sourceAnchor + controlPointOffset(sourceSide, curvature);
-    const QPointF ctrl2 = targetAnchor + controlPointOffset(targetSide, curvature);
+    const QPointF ctrl1 = source.scenePos + source.outwardDirection * curvature;
+    const QPointF ctrl2 = target.scenePos + target.outwardDirection * curvature;
 
     QPainterPath path;
-    path.moveTo(sourceAnchor);
-    path.cubicTo(ctrl1, ctrl2, targetAnchor);
+    path.moveTo(source.scenePos);
+    path.cubicTo(ctrl1, ctrl2, target.scenePos);
     return path;
 }
 
@@ -54,40 +41,48 @@ QPainterPath BezierPathStrategy::computePath(
 
 static constexpr double kOrthogonalGap = 20.0;
 
+// Is the direction predominantly horizontal (as opposed to vertical)?
+static bool isHorizontal(const QPointF &dir)
+{
+    return std::abs(dir.x()) >= std::abs(dir.y());
+}
+
 QPainterPath OrthogonalPathStrategy::computePath(
-    const QPointF &sourceAnchor, Side sourceSide,
-    const QPointF &targetAnchor, Side targetSide,
+    const Anchor &source, const Anchor &target,
     const QList<QPointF> &waypoints)
 {
     QPainterPath path;
-    path.moveTo(sourceAnchor);
+    path.moveTo(source.scenePos);
 
     if (!waypoints.isEmpty()) {
-        QPointF prev = sourceAnchor;
+        QPointF prev = source.scenePos;
         for (const auto &wp : waypoints) {
             path.lineTo(wp.x(), prev.y());
             path.lineTo(wp.x(), wp.y());
             prev = wp;
         }
-        path.lineTo(targetAnchor.x(), prev.y());
-        path.lineTo(targetAnchor);
+        path.lineTo(target.scenePos.x(), prev.y());
+        path.lineTo(target.scenePos);
     } else {
-        QPointF exitPt = sourceAnchor + controlPointOffset(sourceSide, kOrthogonalGap);
-        QPointF entryPt = targetAnchor + controlPointOffset(targetSide, kOrthogonalGap);
+        const QPointF exitPt  = source.scenePos + source.outwardDirection * kOrthogonalGap;
+        const QPointF entryPt = target.scenePos + target.outwardDirection * kOrthogonalGap;
 
         path.lineTo(exitPt);
 
-        if (sourceSide == Side::Right || sourceSide == Side::Left) {
-            if (targetSide == Side::Left || targetSide == Side::Right) {
-                double midX = (exitPt.x() + entryPt.x()) / 2.0;
+        const bool srcHoriz = isHorizontal(source.outwardDirection);
+        const bool tgtHoriz = isHorizontal(target.outwardDirection);
+
+        if (srcHoriz) {
+            if (tgtHoriz) {
+                const double midX = (exitPt.x() + entryPt.x()) / 2.0;
                 path.lineTo(midX, exitPt.y());
                 path.lineTo(midX, entryPt.y());
             } else {
                 path.lineTo(entryPt.x(), exitPt.y());
             }
         } else {
-            if (targetSide == Side::Top || targetSide == Side::Bottom) {
-                double midY = (exitPt.y() + entryPt.y()) / 2.0;
+            if (!tgtHoriz) {
+                const double midY = (exitPt.y() + entryPt.y()) / 2.0;
                 path.lineTo(exitPt.x(), midY);
                 path.lineTo(entryPt.x(), midY);
             } else {
@@ -96,7 +91,7 @@ QPainterPath OrthogonalPathStrategy::computePath(
         }
 
         path.lineTo(entryPt);
-        path.lineTo(targetAnchor);
+        path.lineTo(target.scenePos);
     }
     return path;
 }
@@ -104,15 +99,14 @@ QPainterPath OrthogonalPathStrategy::computePath(
 // --- PolylinePathStrategy ---
 
 QPainterPath PolylinePathStrategy::computePath(
-    const QPointF &sourceAnchor, Side /*sourceSide*/,
-    const QPointF &targetAnchor, Side /*targetSide*/,
+    const Anchor &source, const Anchor &target,
     const QList<QPointF> &waypoints)
 {
     QPainterPath path;
-    path.moveTo(sourceAnchor);
+    path.moveTo(source.scenePos);
     for (const auto &wp : waypoints)
         path.lineTo(wp);
-    path.lineTo(targetAnchor);
+    path.lineTo(target.scenePos);
     return path;
 }
 

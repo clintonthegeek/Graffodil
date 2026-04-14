@@ -2,6 +2,43 @@
 #include <QSignalSpy>
 #include "TestHelpers.h"
 #include <graffodil/GraphScene.h>
+#include <graffodil/Anchors.h>
+#include <graffodil/GraphEdgeItem.h>
+#include <graffodil/EdgePathStrategy.h>
+
+// A node that publishes arbitrary named anchors (like DAW plugin ports),
+// plus overrides anchorToward() for swivel behavior on a subset.
+class PortNode : public QGraphicsRectItem, public Graffodil::IGraphNode {
+public:
+    PortNode() : QGraphicsRectItem(0, 0, 120, 80) {}
+    QString nodeId() const override { return "plugin"; }
+    QList<Graffodil::Anchor> anchors() const override {
+        const QRectF r = mapToScene(rect()).boundingRect();
+        QList<Graffodil::Anchor> list;
+        // Two audio outputs on the right, one sidechain input on the left.
+        Graffodil::Anchor outL;
+        outL.id = "audio_out_l";
+        outL.scenePos = {r.right(), r.top() + r.height() / 3};
+        outL.outwardDirection = {1, 0};
+        outL.metadata = QString("audio");
+        list.append(outL);
+        Graffodil::Anchor outR;
+        outR.id = "audio_out_r";
+        outR.scenePos = {r.right(), r.top() + 2 * r.height() / 3};
+        outR.outwardDirection = {1, 0};
+        outR.metadata = QString("audio");
+        list.append(outR);
+        Graffodil::Anchor sc;
+        sc.id = "sidechain_in";
+        sc.scenePos = {r.left(), r.center().y()};
+        sc.outwardDirection = {-1, 0};
+        sc.metadata = QString("audio");
+        list.append(sc);
+        return list;
+    }
+    QRectF nodeBoundingRect() const override { return mapToScene(rect()).boundingRect(); }
+    QGraphicsItem *graphicsItem() override { return this; }
+};
 
 using namespace Graffodil;
 using namespace Graffodil::Test;
@@ -12,9 +49,12 @@ private slots:
     void testNodeInterface() {
         TestNode node("n1", {10, 20});
         QCOMPARE(node.nodeId(), "n1");
-        QCOMPARE(node.anchorPoint(Side::Top).x(), 60.0);  // 10 + 100/2
-        QCOMPARE(node.anchorPoint(Side::Top).y(), 20.0);
-        QCOMPARE(node.anchorPoint(Side::Right).x(), 110.0); // 10 + 100
+        const auto top = node.anchor(AnchorIds::Top);
+        QCOMPARE(top.scenePos.x(), 60.0);  // 10 + 100/2
+        QCOMPARE(top.scenePos.y(), 20.0);
+        const auto right = node.anchor(AnchorIds::Right);
+        QCOMPARE(right.scenePos.x(), 110.0); // 10 + 100
+        QCOMPARE(node.anchors().size(), 4);
         QVERIFY(node.graphicsItem() != nullptr);
     }
 
@@ -105,6 +145,50 @@ private slots:
         n1->graphicsItem()->setSelected(true);
         QCOMPARE(scene.selectedNodes().size(), 1);
         QCOMPARE(scene.selectedNodes().first(), n1);
+    }
+
+    void testPortAnchors() {
+        // A node with named ports (instead of compass anchors) works
+        // end-to-end: anchor(), anchors(), anchorToward() all behave.
+        PortNode node;
+        QCOMPARE(node.anchors().size(), 3);
+        QCOMPARE(node.anchor("audio_out_l").metadata.toString(), QString("audio"));
+        QCOMPARE(node.anchor("sidechain_in").outwardDirection, QPointF(-1, 0));
+
+        // anchorToward default picks nearest — far-right point should pick
+        // one of the right-side outputs, not the sidechain.
+        auto nearest = node.anchorToward({500, 30});
+        QVERIFY(nearest.id.startsWith("audio_out"));
+    }
+
+    void testEdgeUsesNamedAnchors() {
+        // An edge built with arbitrary anchor ids resolves them correctly.
+        PortNode n1;
+        PortNode n2;
+        n2.setPos(300, 0);
+        auto *edge = new GraphEdgeItem(&n1, "audio_out_r",
+                                        &n2, "sidechain_in",
+                                        new DirectPathStrategy);
+        edge->adjust();
+        QVERIFY(!edge->path().isEmpty());
+        const QPointF start = edge->path().elementAt(0);
+        const QPointF end   = edge->path().elementAt(edge->path().elementCount() - 1);
+        // Start should be n1's audio_out_r, end should be n2's sidechain_in.
+        QCOMPARE(start, n1.anchor("audio_out_r").scenePos);
+        QCOMPARE(end,   n2.anchor("sidechain_in").scenePos);
+        delete edge;
+    }
+
+    void testSwivelAnchorViaEmptyId() {
+        // An edge endpoint with empty anchor id invokes anchorToward()
+        // dynamically each adjust. Default anchorToward picks nearest.
+        TestNode a("a", {0, 0});
+        TestNode b("b", {300, 200});
+        auto *edge = new GraphEdgeItem(&a, QString(),   // swivel source
+                                        &b, QString(),  // swivel target
+                                        new DirectPathStrategy);
+        edge->adjust();
+        QVERIFY(!edge->path().isEmpty());
     }
 };
 
