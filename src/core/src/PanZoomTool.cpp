@@ -20,7 +20,7 @@ void PanZoomTool::activate(GraphScene *scene)
     GraphTool::activate(scene);
     if (auto *v = activeView())
         v->viewport()->setCursor(Qt::OpenHandCursor);
-    emit statusMessage(tr("Drag to pan, Ctrl+wheel to zoom"));
+    emit statusMessage(tr("Drag to pan, scroll wheel to zoom"));
 }
 
 void PanZoomTool::deactivate()

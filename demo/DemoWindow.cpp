@@ -238,7 +238,7 @@ void DemoWindow::buildSidePanel()
     auto *toolLay = new QVBoxLayout(toolGroup);
 
     m_toolCombo = new QComboBox;
-    m_toolCombo->addItems({"Default (Left=select, Middle=pan, Ctrl+wheel=zoom)",
+    m_toolCombo->addItems({"Default (Left=select, Middle=pan, Wheel=zoom)",
                             "Create Edge"});
     connect(m_toolCombo, &QComboBox::currentIndexChanged, this, &DemoWindow::onToolChanged);
     toolLay->addWidget(m_toolCombo);

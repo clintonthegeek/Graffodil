@@ -206,7 +206,7 @@ private slots:
         // PanZoom should be configured for middle-button pan by default.
         QCOMPARE(tool.panZoomTool()->panButton(), Qt::MiddleButton);
         QCOMPARE(tool.panZoomTool()->zoomButton(), Qt::NoButton);
-        QCOMPARE(tool.panZoomTool()->zoomWheelModifier(), Qt::ControlModifier);
+        QCOMPARE(tool.panZoomTool()->zoomWheelModifier(), Qt::NoModifier);
     }
 
     void defaultToolLeftClickSelectsNode() {

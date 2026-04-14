@@ -12,7 +12,7 @@ DefaultGraphTool::DefaultGraphTool(QObject *parent)
     // PanZoom is used purely for middle-button pan + Ctrl+wheel zoom.
     m_panZoom->setPanButton(Qt::MiddleButton);
     m_panZoom->setZoomButton(Qt::NoButton);  // no drag-to-zoom
-    m_panZoom->setZoomWheelModifier(Qt::ControlModifier);
+    m_panZoom->setZoomWheelModifier(Qt::NoModifier);  // plain wheel zooms
 
     // Mouse routes — first match wins.
     // Left button (no modifier, plus common extensions): select/move/rubber-band.
