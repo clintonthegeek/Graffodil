@@ -26,7 +26,8 @@ class AnchorHighlight;
 class CreateEdgeTool : public GraphTool {
     Q_OBJECT
 public:
-    using GraphTool::GraphTool;
+    explicit CreateEdgeTool(QObject *parent = nullptr);
+    ~CreateEdgeTool() override;
 
     void activate(GraphScene *scene) override;
     void deactivate() override;

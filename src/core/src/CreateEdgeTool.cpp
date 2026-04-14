@@ -10,22 +10,41 @@ namespace Graffodil {
 
 static constexpr qreal kDragThreshold = 4.0;
 
+CreateEdgeTool::CreateEdgeTool(QObject *parent)
+    : GraphTool(parent)
+    , m_highlight(new AnchorHighlight)
+{
+    // AnchorHighlight is allocated for the tool's lifetime. It gets added
+    // to the scene on activate and removed on deactivate — but not freed.
+    // Freeing a QGraphicsItem that has been prepareGeometryChange'd right
+    // before a paint pass can leave dangling pointers in the BSP index.
+}
+
+CreateEdgeTool::~CreateEdgeTool()
+{
+    // If we're still in a scene, remove first so the scene stops tracking us.
+    if (m_highlight && m_highlight->scene())
+        m_highlight->scene()->removeItem(m_highlight);
+    delete m_highlight;
+}
+
 void CreateEdgeTool::activate(GraphScene *scene)
 {
     GraphTool::activate(scene);
-    m_highlight = new AnchorHighlight();
-    scene->addItem(m_highlight);
+    if (m_highlight && m_highlight->scene() != scene)
+        scene->addItem(m_highlight);
+    if (m_highlight)
+        m_highlight->hideAnchors();
     emit statusMessage(tr("Click or drag from source node to target node. Esc to cancel."));
 }
 
 void CreateEdgeTool::deactivate()
 {
     cancel();
-    if (m_highlight && m_scene) {
-        m_scene->removeItem(m_highlight);
-        delete m_highlight;
-        m_highlight = nullptr;
-    }
+    // Remove the highlight from the scene but don't delete it — keep it
+    // alive for the next activation.
+    if (m_highlight && m_highlight->scene())
+        m_highlight->scene()->removeItem(m_highlight);
     GraphTool::deactivate();
 }
 
