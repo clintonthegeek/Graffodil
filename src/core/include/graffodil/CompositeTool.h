@@ -41,6 +41,16 @@ public:
     /// Matcher is a catch-all. Must be added LAST (after specific matchers).
     void addFallbackMouseRoute(GraphTool *tool);
 
+    /// Route left-button presses within `hitRadius` of any scene node's
+    /// anchors to the given sub-tool. This enables anchor-initiated
+    /// interactions (e.g., click-drag from an anchor to create an edge)
+    /// without needing a separate tool mode. The route is prepended, so
+    /// it takes priority over subsequent mouse routes.
+    ///
+    /// The matcher looks at every node's anchors() at press time, so it
+    /// adapts to dynamic anchor sets (port nodes, swivel nodes, etc.).
+    void addAnchorRoute(GraphTool *tool, qreal hitRadius = 12.0);
+
     // --- Convenience matcher factories ---
 
     static MouseMatcher matchButton(Qt::MouseButton button,

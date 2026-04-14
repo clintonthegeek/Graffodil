@@ -1,8 +1,10 @@
 #include <graffodil/CompositeTool.h>
 #include <graffodil/GraphScene.h>
+#include <graffodil/IGraphNode.h>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneWheelEvent>
 #include <QKeyEvent>
+#include <QLineF>
 #include <QSet>
 
 namespace Graffodil {
@@ -28,6 +30,33 @@ void CompositeTool::addKeyRoute(GraphTool *tool)
 void CompositeTool::addFallbackMouseRoute(GraphTool *tool)
 {
     addMouseRoute(tool, matchAnyButton());
+}
+
+void CompositeTool::addAnchorRoute(GraphTool *tool, qreal hitRadius)
+{
+    if (!tool)
+        return;
+    // Capture `this` so the matcher can read m_scene at press time.
+    auto matcher = [this, hitRadius](QGraphicsSceneMouseEvent *e) {
+        if (e->button() != Qt::LeftButton || !m_scene)
+            return false;
+        const QPointF p = e->scenePos();
+        for (auto *node : m_scene->nodes()) {
+            // Cheap AABB reject before iterating anchors.
+            QRectF bounds = node->graphicsItem()->sceneBoundingRect()
+                                .adjusted(-hitRadius, -hitRadius,
+                                          hitRadius, hitRadius);
+            if (!bounds.contains(p))
+                continue;
+            for (const Anchor &a : node->anchors()) {
+                if (QLineF(a.scenePos, p).length() <= hitRadius)
+                    return true;
+            }
+        }
+        return false;
+    };
+    // Prepend — anchor routing must beat generic Left-button routes.
+    m_mouseRoutes.prepend({tool, matcher});
 }
 
 CompositeTool::MouseMatcher CompositeTool::matchButton(

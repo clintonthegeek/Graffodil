@@ -112,8 +112,14 @@ void CreateEdgeTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     if (!m_sourceNode || event->button() != Qt::LeftButton)
         return;
 
-    if (!m_sawDrag)
-        return;  // fall through to click-click
+    if (!m_sawDrag) {
+        // Drag-only: release without dragging cancels the creation.
+        // Otherwise (default): stay in click-click mode and wait for a
+        // second click on a target node.
+        if (m_dragOnly)
+            cancel();
+        return;
+    }
 
     IGraphNode *target = findNodeAt(event->scenePos());
     if (!target || target == m_sourceNode) {
@@ -179,6 +185,11 @@ void CreateEdgeTool::keyPressEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Escape)
         cancel();
+}
+
+void CreateEdgeTool::setDragOnly(bool dragOnly)
+{
+    m_dragOnly = dragOnly;
 }
 
 void CreateEdgeTool::cancel()

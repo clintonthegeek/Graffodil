@@ -81,9 +81,12 @@ DemoWindow::DemoWindow(QWidget *parent)
     m_view->setMouseTracking(true);
     setCentralWidget(m_view);
 
-    // Tools
+    // Tools. CreateEdgeTool runs in drag-only mode since it's embedded in
+    // the unified composite via anchor routing — release without drag
+    // cancels rather than waiting for a second click.
     m_selectMoveTool = new SelectMoveTool(this);
     m_createEdgeTool = new CreateEdgeTool(this);
+    m_createEdgeTool->setDragOnly(true);
     m_panZoomTool = new PanZoomTool(this);
     m_panZoomTool->setPanButton(Qt::MiddleButton);
     m_panZoomTool->setZoomButton(Qt::NoButton);
@@ -111,27 +114,28 @@ DemoWindow::DemoWindow(QWidget *parent)
     connect(m_selectMoveTool, &SelectMoveTool::reverseRequested,
             this, &DemoWindow::onReverseRequested);
 
-    m_defaultMode = new CompositeTool(this);
-    m_defaultMode->addMouseRoute(m_selectMoveTool,
+    // Single unified tool. Routing priority (first match wins):
+    //  1. Left-button press within 12px of any anchor → CreateEdgeTool
+    //     (drag to another anchor to create; release without drag cancels).
+    //  2. Left-button elsewhere → SelectMoveTool (select/move/rubber-band).
+    //  3. Middle-button → PanZoomTool pan.
+    //  4. Wheel → PanZoomTool zoom-to-cursor.
+    //  5. Keys → SelectMoveTool (Delete/Backspace/R) and CreateEdgeTool (Esc).
+    m_unifiedTool = new CompositeTool(this);
+    m_unifiedTool->addAnchorRoute(m_createEdgeTool, 12.0);
+    m_unifiedTool->addMouseRoute(m_selectMoveTool,
                                   CompositeTool::matchButton(Qt::LeftButton, Qt::NoModifier));
-    m_defaultMode->addMouseRoute(m_selectMoveTool,
+    m_unifiedTool->addMouseRoute(m_selectMoveTool,
                                   CompositeTool::matchButton(Qt::LeftButton, Qt::ShiftModifier));
-    m_defaultMode->addMouseRoute(m_selectMoveTool,
+    m_unifiedTool->addMouseRoute(m_selectMoveTool,
                                   CompositeTool::matchButton(Qt::LeftButton, Qt::ControlModifier));
-    m_defaultMode->addMouseRoute(m_panZoomTool,
+    m_unifiedTool->addMouseRoute(m_panZoomTool,
                                   CompositeTool::matchButton(Qt::MiddleButton));
-    m_defaultMode->addWheelRoute(m_panZoomTool, CompositeTool::matchAnyWheel());
-    m_defaultMode->addKeyRoute(m_selectMoveTool);
+    m_unifiedTool->addWheelRoute(m_panZoomTool, CompositeTool::matchAnyWheel());
+    m_unifiedTool->addKeyRoute(m_selectMoveTool);
+    m_unifiedTool->addKeyRoute(m_createEdgeTool);
 
-    m_createMode = new CompositeTool(this);
-    m_createMode->addMouseRoute(m_createEdgeTool,
-                                 CompositeTool::matchButton(Qt::LeftButton));
-    m_createMode->addMouseRoute(m_panZoomTool,
-                                 CompositeTool::matchButton(Qt::MiddleButton));
-    m_createMode->addWheelRoute(m_panZoomTool, CompositeTool::matchAnyWheel());
-    m_createMode->addKeyRoute(m_createEdgeTool);
-
-    m_scene->setActiveTool(m_defaultMode);
+    m_scene->setActiveTool(m_unifiedTool);
 
     m_minimap = new GraphMinimap(m_view);
     m_batchRenderer = new BatchRenderer(m_scene);
@@ -280,15 +284,21 @@ void DemoWindow::buildSidePanel()
     layoutLay->addLayout(layoutBtnRow);
     layout->addWidget(layoutGroup);
 
-    // --- Tool ---
-    auto *toolGroup = new QGroupBox("Tool");
-    auto *toolLay = new QVBoxLayout(toolGroup);
-    m_toolCombo = new QComboBox;
-    m_toolCombo->addItems({"Default  (Left = select / move)",
-                            "Create Edge  (Left = connect nodes)"});
-    connect(m_toolCombo, &QComboBox::currentIndexChanged, this, &DemoWindow::onToolChanged);
-    toolLay->addWidget(m_toolCombo);
-    layout->addWidget(toolGroup);
+    // --- Interaction help ---
+    auto *helpGroup = new QGroupBox("Interaction");
+    auto *helpLay = new QVBoxLayout(helpGroup);
+    auto *helpText = new QLabel(
+        "<b>Drag from any anchor</b> (visible dots on nodes) to another "
+        "anchor to create an edge.<br>"
+        "<b>Click</b> a node or edge to select. <b>Shift</b>-click to add, "
+        "<b>Ctrl</b>-click to toggle.<br>"
+        "<b>Drag</b> a node to move. Drag empty space to rubber-band.<br>"
+        "<b>Middle-drag</b> to pan. <b>Wheel</b> to zoom.<br>"
+        "<b>Del</b> to remove selected. <b>R</b> to reverse selected edges.");
+    helpText->setWordWrap(true);
+    helpText->setStyleSheet("font-size: 10pt; color: #666;");
+    helpLay->addWidget(helpText);
+    layout->addWidget(helpGroup);
 
     // --- Edge Appearance ---
     auto *edgeGroup = new QGroupBox("Edge Appearance");
@@ -634,14 +644,6 @@ void DemoWindow::forceLayoutTick()
 // ---------------------------------------------------------------------------
 // Tools & edge appearance
 // ---------------------------------------------------------------------------
-
-void DemoWindow::onToolChanged(int index)
-{
-    switch (index) {
-    case 0: m_scene->setActiveTool(m_defaultMode); break;
-    case 1: m_scene->setActiveTool(m_createMode); break;
-    }
-}
 
 void DemoWindow::onEdgeCreated()
 {

@@ -44,7 +44,6 @@ private slots:
     void forceLayoutTick();
     void zoomToFit();
     void resetZoom();
-    void onToolChanged(int index);
     void onPathStrategyChanged(int index);
     void onSourceTerminusChanged(int index);
     void onTargetTerminusChanged(int index);
@@ -69,12 +68,12 @@ private:
     Graffodil::GraphMinimap *m_minimap = nullptr;
     Graffodil::BatchRenderer *m_batchRenderer = nullptr;
 
-    // Tools
+    // Tools — a single composite that handles select/move, anchor-initiated
+    // edge creation (drag-only from anchors), pan (middle-drag), zoom (wheel).
     Graffodil::SelectMoveTool *m_selectMoveTool = nullptr;
     Graffodil::CreateEdgeTool *m_createEdgeTool = nullptr;
     Graffodil::PanZoomTool *m_panZoomTool = nullptr;
-    Graffodil::CompositeTool *m_defaultMode = nullptr;
-    Graffodil::CompositeTool *m_createMode = nullptr;
+    Graffodil::CompositeTool *m_unifiedTool = nullptr;
 
     // Force layout animation
     Graffodil::ForceLayout *m_forceLayout = nullptr;
@@ -90,11 +89,10 @@ private:
     QSpinBox *m_signalLengthSpin = nullptr;
     QSpinBox *m_swivelCountSpin = nullptr;
 
-    // Layout / tool / edge / view
+    // Layout / edge / view
     QComboBox *m_layoutCombo = nullptr;
     QPushButton *m_applyLayoutBtn = nullptr;
     QPushButton *m_stopForceBtn = nullptr;
-    QComboBox *m_toolCombo = nullptr;
     QComboBox *m_pathStrategyCombo = nullptr;
     QComboBox *m_sourceTerminusCombo = nullptr;
     QComboBox *m_targetTerminusCombo = nullptr;

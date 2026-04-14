@@ -37,6 +37,13 @@ public:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
+    /// When true, release without drag cancels instead of entering
+    /// click-click mode. Matches the interaction style of node editors
+    /// (Blender, Unreal Blueprint, etc.) and suits anchor-initiated
+    /// edge creation embedded in a broader default tool. Default: false.
+    void setDragOnly(bool dragOnly);
+    bool isDragOnly() const { return m_dragOnly; }
+
 signals:
     void edgeRequested(IGraphNode *source, const QString &sourceAnchorId,
                        IGraphNode *target, const QString &targetAnchorId);
@@ -52,6 +59,7 @@ private:
     QString m_sourceAnchorId;
     QPointF m_pressScenePos;
     bool m_sawDrag = false;
+    bool m_dragOnly = false;
     QGraphicsLineItem *m_previewLine = nullptr;
     AnchorHighlight *m_highlight = nullptr;
 };
