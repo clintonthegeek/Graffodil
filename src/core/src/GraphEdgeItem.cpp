@@ -65,9 +65,12 @@ void GraphEdgeItem::reverse()
 {
     std::swap(m_source, m_target);
     std::swap(m_sourceAnchorId, m_targetAnchorId);
-    // Terminus styles stay attached to their ends (source-end vs target-end
-    // as semantic ends, not endpoints), so swap them to preserve visual intent.
-    std::swap(m_sourceTerminus, m_targetTerminus);
+    // Intentionally DO NOT swap termini. Termini are associated with the
+    // semantic source/target slots, so keeping them in place means the
+    // target terminus (e.g. an arrowhead) moves to the new target end —
+    // which is the visible effect users expect from "reverse direction".
+    // Swapping termini would leave the arrow visually stuck at its
+    // previous node, making the reverse appear to do nothing.
     if (!m_waypoints.isEmpty()) {
         QList<QPointF> reversed;
         reversed.reserve(m_waypoints.size());
