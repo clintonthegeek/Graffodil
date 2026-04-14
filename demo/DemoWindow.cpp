@@ -448,9 +448,14 @@ static void genSignalChain(GraphScene *scene, int length)
         scene->addEdge(makeEdge(plugins[i], "out:L", plugins[i + 1], "in:L"));
         scene->addEdge(makeEdge(plugins[i], "out:R", plugins[i + 1], "in:R"));
     }
-    // A sidechain from plugin[1]'s L to plugin[2]'s "side", if available.
-    if (length >= 4)
-        scene->addEdge(makeEdge(plugins[1], "out:L", plugins[3], "in:side"));
+    // Sidechain into a middle plugin. Middle plugins are the only ones
+    // with an "in:side" anchor (the last plugin has inputs but no
+    // sidechain). length-2 is always a middle plugin when length >= 3.
+    if (length >= 3) {
+        const int sideTarget = length - 2;
+        scene->addEdge(makeEdge(plugins[0], "out:L",
+                                 plugins[sideTarget], "in:side"));
+    }
 }
 
 static void genSwivelCluster(GraphScene *scene, int count)

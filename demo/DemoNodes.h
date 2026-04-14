@@ -140,6 +140,12 @@ public:
     QRectF nodeBoundingRect() const override { return mapToScene(rect()).boundingRect(); }
     QGraphicsItem *graphicsItem() override { return this; }
 
+    QRectF boundingRect() const override {
+        // Port dots protrude 3px past the rect on each side; include them
+        // so the full drawing region gets invalidated on move.
+        return QGraphicsRectItem::boundingRect().adjusted(-4, 0, 4, 0);
+    }
+
 protected:
     void paint(QPainter *p, const QStyleOptionGraphicsItem *opt, QWidget *w) override {
         QGraphicsRectItem::paint(p, opt, w);
