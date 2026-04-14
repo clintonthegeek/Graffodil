@@ -159,20 +159,18 @@ void SelectMoveTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     if (!m_scene)
         return;
 
-    // Finalize rubber-band
+    // Finalize rubber-band — selects nodes only.
+    // Edges are deliberately excluded: they're selected via click or
+    // Shift/Ctrl+click, never by rectangle, because their elongated shapes
+    // make rect-intersection selection feel arbitrary.
     if (m_rubberBanding && m_rubberBand) {
         QRectF r = m_rubberBand->rect();
         const bool additive = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier | Qt::MetaModifier);
         if (!additive)
             m_scene->clearSelection();
-        // Select items whose center (for nodes) or shape (for edges) is in the rect.
         for (auto *node : m_scene->nodes()) {
             if (r.contains(node->graphicsItem()->sceneBoundingRect().center()))
                 node->graphicsItem()->setSelected(true);
-        }
-        for (auto *edge : m_scene->edges()) {
-            if (r.intersects(edge->graphicsItem()->sceneBoundingRect()))
-                edge->graphicsItem()->setSelected(true);
         }
 
         m_scene->removeItem(m_rubberBand);

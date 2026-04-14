@@ -235,7 +235,10 @@ void GraphScene::adjustAllEdges()
     }
 }
 
-// Tool dispatch — forward events to active tool if set.
+// Tool dispatch — forward events to active tool if set, but also let the
+// base class run so Qt's built-in hover/cursor dispatch keeps working.
+// Without calling the base, QGraphicsItem::setCursor() wouldn't take effect
+// on hover because the cursor update is driven from the base mouseMoveEvent.
 void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent *e)
 {
     if (m_activeTool)
@@ -246,10 +249,15 @@ void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent *e)
 
 void GraphScene::mouseMoveEvent(QGraphicsSceneMouseEvent *e)
 {
-    if (m_activeTool)
+    if (m_activeTool) {
         m_activeTool->mouseMoveEvent(e);
-    else
+        // Only run hover/cursor tracking when no mouse button is pressed.
+        // While buttons are held, the active tool owns the drag.
+        if (e->buttons() == Qt::NoButton)
+            QGraphicsScene::mouseMoveEvent(e);
+    } else {
         QGraphicsScene::mouseMoveEvent(e);
+    }
 }
 
 void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *e)
