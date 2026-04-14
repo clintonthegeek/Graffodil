@@ -28,11 +28,16 @@ public:
     explicit DemoWindow(QWidget *parent = nullptr);
     ~DemoWindow() override;
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private slots:
     void generateGraph();
     void applyLayout();
     void stopForceLayout();
     void forceLayoutTick();
+    void zoomToFit();
+    void resetZoom();
     void onToolChanged(int index);
     void onPathStrategyChanged(int index);
     void onSourceTerminusChanged(int index);
@@ -49,6 +54,9 @@ private:
     void buildSidePanel();
     void updateEdgeAppearance();
     void adjustAllEdges();
+    void fitViewToScene();
+
+    bool m_initialFitDone = false;
 
     // Scene
     Graffodil::GraphScene *m_scene = nullptr;

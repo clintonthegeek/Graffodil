@@ -101,9 +101,18 @@ void PanZoomTool::wheelEvent(QGraphicsSceneWheelEvent *event)
         && (event->modifiers() & m_wheelZoomMod) != m_wheelZoomMod)
         return;
 
+    auto *v = activeView();
+    if (!v) return;
+
     const double steps = event->delta() / 120.0;
     const double factor = std::pow(1.15, steps);
-    applyZoom(factor, event->scenePos());
+
+    // For wheel events the cursor is over the view, so let Qt's built-in
+    // AnchorUnderMouse handle the re-centering. It's more reliable than
+    // scrollbar manipulation (which can fail when bars are hidden).
+    v->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
+    v->scale(factor, factor);
+
     event->accept();
 }
 

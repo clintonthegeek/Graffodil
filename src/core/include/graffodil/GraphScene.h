@@ -55,6 +55,11 @@ public:
     };
     ClearResult clearGraph();
 
+    /// Expand the scene rect to enclose all items plus a margin of
+    /// `margin` scene units, giving room to pan past the content.
+    /// If the scene is empty, sets a default 2*margin square centered on origin.
+    void fitSceneRectToContent(qreal margin = 500.0);
+
     // --- Tool dispatch ---
     void setActiveTool(GraphTool *tool);
     GraphTool *activeTool() const;

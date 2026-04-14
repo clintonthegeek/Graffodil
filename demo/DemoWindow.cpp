@@ -33,6 +33,7 @@
 #include <QGraphicsRectItem>
 #include <QStatusBar>
 #include <QSet>
+#include <QShowEvent>
 
 using namespace Graffodil;
 
@@ -292,6 +293,18 @@ void DemoWindow::buildSidePanel()
     connect(m_edgesAboveCheck, &QCheckBox::toggled, this, &DemoWindow::onEdgesAboveToggled);
     viewLay->addWidget(m_edgesAboveCheck);
 
+    auto *zoomBtnRow = new QHBoxLayout;
+    auto *fitBtn = new QPushButton("Zoom to Fit");
+    connect(fitBtn, &QPushButton::clicked, this, &DemoWindow::zoomToFit);
+    zoomBtnRow->addWidget(fitBtn);
+
+    auto *resetBtn = new QPushButton("1:1");
+    resetBtn->setToolTip("Reset zoom to 1:1");
+    connect(resetBtn, &QPushButton::clicked, this, &DemoWindow::resetZoom);
+    zoomBtnRow->addWidget(resetBtn);
+
+    viewLay->addLayout(zoomBtnRow);
+
     layout->addWidget(viewGroup);
 
     // --- Status ---
@@ -380,8 +393,7 @@ void DemoWindow::applyLayout()
         layout.setEdges(sceneEdges);
         m_scene->applyLayout(layout.compute());
         adjustAllEdges();
-        m_view->fitInView(m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50),
-                          Qt::KeepAspectRatio);
+        fitViewToScene();
 
     } else if (layoutIdx == 1) {
         // Sugiyama
@@ -392,8 +404,7 @@ void DemoWindow::applyLayout()
         layout.setEdges(sceneEdges);
         m_scene->applyLayout(layout.compute());
         adjustAllEdges();
-        m_view->fitInView(m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50),
-                          Qt::KeepAspectRatio);
+        fitViewToScene();
 
     } else if (layoutIdx == 2) {
         // Force — animated
@@ -430,8 +441,7 @@ void DemoWindow::forceLayoutTick()
 
     if (!running) {
         stopForceLayout();
-        m_view->fitInView(m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50),
-                          Qt::KeepAspectRatio);
+        fitViewToScene();
         statusBar()->showMessage("Force layout converged");
     }
 }
@@ -594,4 +604,42 @@ void DemoWindow::adjustAllEdges()
         if (item)
             item->adjust();
     }
+}
+
+void DemoWindow::fitViewToScene()
+{
+    // Expand the scene rect so panning has room beyond the content, then
+    // zoom the viewport to fit the content with a little margin.
+    m_scene->fitSceneRectToContent(1000.0);
+    QRectF content = m_scene->itemsBoundingRect();
+    if (content.isEmpty())
+        return;
+    m_view->fitInView(content.adjusted(-50, -50, 50, 50), Qt::KeepAspectRatio);
+}
+
+void DemoWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    // Defer the initial view fit until we have real widget geometry.
+    // fitInView during the constructor fits against a zero-sized viewport.
+    if (!m_initialFitDone) {
+        m_initialFitDone = true;
+        fitViewToScene();
+    }
+}
+
+void DemoWindow::zoomToFit()
+{
+    fitViewToScene();
+    statusBar()->showMessage("Zoomed to fit");
+}
+
+void DemoWindow::resetZoom()
+{
+    m_view->resetTransform();
+    // Center on the content if there is any.
+    QRectF content = m_scene->itemsBoundingRect();
+    if (!content.isEmpty())
+        m_view->centerOn(content.center());
+    statusBar()->showMessage("Zoom reset to 1:1");
 }

@@ -140,6 +140,16 @@ QList<IGraphEdge *> GraphScene::edges() const
     return m_edges.values();
 }
 
+void GraphScene::fitSceneRectToContent(qreal margin)
+{
+    QRectF items = itemsBoundingRect();
+    if (items.isEmpty()) {
+        setSceneRect(-margin, -margin, 2 * margin, 2 * margin);
+        return;
+    }
+    setSceneRect(items.adjusted(-margin, -margin, margin, margin));
+}
+
 GraphScene::ClearResult GraphScene::clearGraph()
 {
     ClearResult result;
