@@ -44,7 +44,16 @@ public:
     void addEdge(IGraphEdge *edge);
     void removeEdge(const QString &id);
     IGraphEdge *edgeForId(const QString &id) const;
+
+    /// Find an edge whose source is sourceId and target is targetId.
+    /// Direction-sensitive; returns nullptr if only the reverse exists.
     IGraphEdge *edgeBetween(const QString &sourceId, const QString &targetId) const;
+
+    /// Find an edge whose endpoints are {a, b} in either order. Useful
+    /// for consumers treating edges as undirected, where source/target
+    /// ordering is arbitrary. Returns the first match.
+    IGraphEdge *edgeBetweenUndirected(const QString &a, const QString &b) const;
+
     QList<IGraphEdge *> edges() const;
 
     /// Remove all nodes and edges from the registry and scene. Returns the

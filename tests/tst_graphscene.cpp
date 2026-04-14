@@ -179,6 +179,30 @@ private slots:
         delete edge;
     }
 
+    void testEdgeBetweenUndirected() {
+        GraphScene scene;
+        auto *a = new TestNode("a");
+        auto *b = new TestNode("b");
+        auto *c = new TestNode("c");
+        scene.addNode(a);
+        scene.addNode(b);
+        scene.addNode(c);
+
+        auto *e1 = new TestEdge("e1", a, b);  // directed a -> b
+        scene.addEdge(e1);
+
+        // Directed lookup respects order.
+        QCOMPARE(scene.edgeBetween("a", "b"), e1);
+        QVERIFY(scene.edgeBetween("b", "a") == nullptr);
+
+        // Undirected lookup matches either order.
+        QCOMPARE(scene.edgeBetweenUndirected("a", "b"), e1);
+        QCOMPARE(scene.edgeBetweenUndirected("b", "a"), e1);
+
+        // Non-existent pair still returns null.
+        QVERIFY(scene.edgeBetweenUndirected("a", "c") == nullptr);
+    }
+
     void testSwivelAnchorViaEmptyId() {
         // An edge endpoint with empty anchor id invokes anchorToward()
         // dynamically each adjust. Default anchorToward picks nearest.

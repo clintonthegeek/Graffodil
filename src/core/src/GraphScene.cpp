@@ -135,6 +135,17 @@ IGraphEdge *GraphScene::edgeBetween(const QString &sourceId, const QString &targ
     return nullptr;
 }
 
+IGraphEdge *GraphScene::edgeBetweenUndirected(const QString &a, const QString &b) const
+{
+    for (auto *edge : m_edges) {
+        const QString &s = edge->sourceNode()->nodeId();
+        const QString &t = edge->targetNode()->nodeId();
+        if ((s == a && t == b) || (s == b && t == a))
+            return edge;
+    }
+    return nullptr;
+}
+
 QList<IGraphEdge *> GraphScene::edges() const
 {
     return m_edges.values();
