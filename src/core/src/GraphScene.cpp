@@ -27,9 +27,33 @@ void GraphScene::removeNode(const QString &id)
     if (it == m_nodes.end())
         return;
     IGraphNode *node = it.value();
+
+    // Cascade: remove any edges that reference this node first.
+    // Otherwise those edges would hold dangling pointers to the removed
+    // node, and any subsequent access (including paint-time bounding-rect
+    // queries) would crash.
+    QList<QString> connectedIds;
+    for (auto *edge : m_edges) {
+        if (edge->sourceNode() == node || edge->targetNode() == node)
+            connectedIds.append(edge->edgeId());
+    }
+    for (const auto &eid : connectedIds)
+        removeEdge(eid);
+
     removeItem(node->graphicsItem());
     m_nodes.erase(it);
     emit nodeRemoved(id);
+}
+
+QList<IGraphEdge *> GraphScene::connectedEdges(const QString &nodeId) const
+{
+    QList<IGraphEdge *> result;
+    for (auto *edge : m_edges) {
+        if (edge->sourceNode()->nodeId() == nodeId
+            || edge->targetNode()->nodeId() == nodeId)
+            result.append(edge);
+    }
+    return result;
 }
 
 IGraphNode *GraphScene::nodeForId(const QString &id) const
@@ -113,6 +137,28 @@ IGraphEdge *GraphScene::edgeBetween(const QString &sourceId, const QString &targ
 QList<IGraphEdge *> GraphScene::edges() const
 {
     return m_edges.values();
+}
+
+GraphScene::ClearResult GraphScene::clearGraph()
+{
+    ClearResult result;
+    // Snapshot values first so we can iterate safely.
+    result.edges = m_edges.values();
+    result.nodes = m_nodes.values();
+
+    for (auto *edge : result.edges) {
+        removeItem(edge->graphicsItem());
+        emit edgeRemoved(edge->edgeId());
+    }
+    m_edges.clear();
+
+    for (auto *node : result.nodes) {
+        removeItem(node->graphicsItem());
+        emit nodeRemoved(node->nodeId());
+    }
+    m_nodes.clear();
+
+    return result;
 }
 
 void GraphScene::setActiveTool(GraphTool *tool)

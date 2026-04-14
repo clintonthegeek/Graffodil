@@ -31,6 +31,7 @@
 #include <QRandomGenerator>
 #include <QGraphicsRectItem>
 #include <QStatusBar>
+#include <QSet>
 
 using namespace Graffodil;
 
@@ -302,12 +303,14 @@ void DemoWindow::generateGraph()
     // Stop any running force simulation
     stopForceLayout();
 
-    // Clear scene
-    // Remove edges first, then nodes (edges reference nodes)
-    for (auto *edge : m_scene->edges())
-        m_scene->removeEdge(edge->edgeId());
-    for (auto *node : m_scene->nodes())
-        m_scene->removeNode(node->nodeId());
+    // Clear scene — library returns the removed interfaces so we can free
+    // the graphicsItems. Otherwise they'd leak and (if anything still
+    // referenced them) crash on next paint.
+    auto cleared = m_scene->clearGraph();
+    for (auto *edge : cleared.edges)
+        delete edge->graphicsItem();
+    for (auto *node : cleared.nodes)
+        delete node->graphicsItem();
 
     int count = m_nodeCountSpin->value();
     double density = m_densitySpin->value();
@@ -522,35 +525,39 @@ void DemoWindow::onEdgesAboveToggled(bool checked)
 void DemoWindow::onDeleteRequested(const QList<IGraphNode *> &nodes,
                                    const QList<IGraphEdge *> &edges)
 {
-    // Delete edges first (they reference nodes)
-    for (auto *edge : edges)
-        m_scene->removeEdge(edge->edgeId());
-    // For each node, also remove connected edges that weren't in the selection
+    // Use a set of edge pointers to de-duplicate (selection + cascade from
+    // node deletion may refer to the same edge).
+    QSet<IGraphEdge *> toDeleteEdges(edges.begin(), edges.end());
+
+    // For each selected node, collect its connected edges (library helper)
+    // so we can free them after the cascading removeNode call.
     for (auto *node : nodes) {
-        QString id = node->nodeId();
-        // Collect edges to remove (modifying during iteration is unsafe)
-        QList<QString> edgeIdsToRemove;
-        for (auto *edge : m_scene->edges()) {
-            if (edge->sourceNode()->nodeId() == id
-                || edge->targetNode()->nodeId() == id) {
-                edgeIdsToRemove.append(edge->edgeId());
-            }
-        }
-        for (const auto &eid : edgeIdsToRemove)
-            m_scene->removeEdge(eid);
-        m_scene->removeNode(id);
+        const auto connected = m_scene->connectedEdges(node->nodeId());
+        for (auto *e : connected)
+            toDeleteEdges.insert(e);
     }
 
-    // Delete the underlying QGraphicsItems (scene only holds non-owning refs
-    // via interfaces, so we need to free the memory ourselves)
+    // Remove edges explicitly selected (cascading removeNode will remove the
+    // rest from the registry).
     for (auto *edge : edges)
+        m_scene->removeEdge(edge->edgeId());
+
+    // Remove nodes (cascades to remove any remaining connected edges from
+    // the registry and scene — but does NOT delete their graphicsItems).
+    for (auto *node : nodes)
+        m_scene->removeNode(node->nodeId());
+
+    // Now free all QGraphicsItems. Do edges first (they may reference nodes
+    // via m_source/m_target — the pointers become dangling once the nodes
+    // are freed, but we never dereference them again after this point).
+    for (auto *edge : toDeleteEdges)
         delete edge->graphicsItem();
     for (auto *node : nodes)
         delete node->graphicsItem();
 
     statusBar()->showMessage(
         QStringLiteral("Deleted %1 node(s), %2 edge(s)")
-            .arg(nodes.size()).arg(edges.size()));
+            .arg(nodes.size()).arg(toDeleteEdges.size()));
 }
 
 void DemoWindow::onReverseRequested(const QList<IGraphEdge *> &edges)

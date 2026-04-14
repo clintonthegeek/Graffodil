@@ -29,7 +29,15 @@ public:
 
     // --- Node/edge registry ---
     void addNode(IGraphNode *node);
+
+    /// Remove the node from the registry AND remove any edges referencing it.
+    /// The consumer still owns the QGraphicsItems — query connectedEdges()
+    /// first if they need to free them. The scene never deletes items.
     void removeNode(const QString &id);
+
+    /// All edges with the given node as source or target.
+    QList<IGraphEdge *> connectedEdges(const QString &nodeId) const;
+
     IGraphNode *nodeForId(const QString &id) const;
     QList<IGraphNode *> nodes() const;
 
@@ -38,6 +46,14 @@ public:
     IGraphEdge *edgeForId(const QString &id) const;
     IGraphEdge *edgeBetween(const QString &sourceId, const QString &targetId) const;
     QList<IGraphEdge *> edges() const;
+
+    /// Remove all nodes and edges from the registry and scene. Returns the
+    /// removed interfaces so the consumer can free their graphicsItems.
+    struct ClearResult {
+        QList<IGraphNode *> nodes;
+        QList<IGraphEdge *> edges;
+    };
+    ClearResult clearGraph();
 
     // --- Tool dispatch ---
     void setActiveTool(GraphTool *tool);
