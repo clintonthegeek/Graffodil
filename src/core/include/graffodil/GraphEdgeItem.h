@@ -51,6 +51,8 @@ private:
     std::unique_ptr<TerminusStyle> m_sourceTerminus;
     std::unique_ptr<TerminusStyle> m_targetTerminus;
     QList<QPointF> m_waypoints;
+    QPointF m_lastSrcAnchor;
+    QPointF m_lastTgtAnchor;
     bool m_highlighted = false;
 };
 

@@ -79,6 +79,24 @@ void GraphEdgeItem::paint(QPainter *painter,
     Q_UNUSED(option);
     Q_UNUSED(widget);
 
+    if (!m_strategy || !m_source || !m_target)
+        return;
+
+    // Auto-adjust: recompute path from current node positions every paint.
+    // This ensures edges follow nodes during drag without requiring explicit
+    // adjust() calls from consumers.
+    const QPointF srcAnchor = m_source->anchorPoint(m_sourceSide);
+    const QPointF tgtAnchor = m_target->anchorPoint(m_targetSide);
+
+    if (srcAnchor != m_lastSrcAnchor || tgtAnchor != m_lastTgtAnchor) {
+        m_lastSrcAnchor = srcAnchor;
+        m_lastTgtAnchor = tgtAnchor;
+        prepareGeometryChange();
+        QPainterPath p = m_strategy->computePath(
+            srcAnchor, m_sourceSide, tgtAnchor, m_targetSide, m_waypoints);
+        setPath(p);
+    }
+
     if (path().isEmpty())
         return;
 
@@ -96,16 +114,21 @@ void GraphEdgeItem::paint(QPainter *painter,
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(path());
 
-    const QPointF srcAnchor = m_source->anchorPoint(m_sourceSide);
-    const QPointF tgtAnchor = m_target->anchorPoint(m_targetSide);
+    // Draw terminus styles using the path tangent at each endpoint,
+    // so arrowheads align with the actual curve direction (not the
+    // straight line from source to target).
+    const QPainterPath &p = path();
 
     if (m_sourceTerminus) {
-        QPointF fromDir = tgtAnchor;
+        // "from" direction for source = a point slightly along the path from the start
+        QPointF fromDir = p.pointAtPercent(qMin(0.05, 10.0 / qMax(p.length(), 1.0)));
         m_sourceTerminus->draw(painter, srcAnchor, fromDir, edgePen);
     }
 
     if (m_targetTerminus) {
-        m_targetTerminus->draw(painter, tgtAnchor, srcAnchor, edgePen);
+        // "from" direction for target = a point slightly before the end of the path
+        QPointF fromDir = p.pointAtPercent(qMax(0.95, 1.0 - 10.0 / qMax(p.length(), 1.0)));
+        m_targetTerminus->draw(painter, tgtAnchor, fromDir, edgePen);
     }
 }
 
