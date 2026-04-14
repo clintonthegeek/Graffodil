@@ -114,6 +114,9 @@ DemoWindow::DemoWindow(QWidget *parent)
     m_view->setRenderHint(QPainter::Antialiasing);
     m_view->setDragMode(QGraphicsView::NoDrag);
     m_view->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+    // Enable mouse tracking so QGraphicsItem::setCursor takes effect on hover
+    // (otherwise cursor only updates while a button is held).
+    m_view->setMouseTracking(true);
     setCentralWidget(m_view);
 
     // Tools — the composite DefaultGraphTool gives us left=select/move,

@@ -146,7 +146,10 @@ void GraphEdgeItem::paint(QPainter *painter,
         edgePen.setWidthF(edgePen.widthF() + 1.0);
     }
     if (isSelected()) {
-        edgePen.setColor(edgePen.color().lighter(150));
+        // Distinct selection color — pen width is increased so selection
+        // reads clearly regardless of the underlying edge color.
+        edgePen.setColor(QColor(0, 120, 215));
+        edgePen.setWidthF(qMax(edgePen.widthF(), 1.0) + 1.5);
     }
 
     painter->setPen(edgePen);
