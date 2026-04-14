@@ -1,4 +1,5 @@
 #include "DemoWindow.h"
+#include "DemoNodes.h"
 
 #include <graffodil/GraphScene.h>
 #include <graffodil/IGraphNode.h>
@@ -22,6 +23,7 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QFormLayout>
 #include <QGroupBox>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
@@ -29,9 +31,9 @@
 #include <QCheckBox>
 #include <QPushButton>
 #include <QLabel>
+#include <QStackedWidget>
 #include <QTimer>
 #include <QRandomGenerator>
-#include <QGraphicsRectItem>
 #include <QStatusBar>
 #include <QSet>
 #include <QShowEvent>
@@ -39,58 +41,27 @@
 using namespace Graffodil;
 
 // ---------------------------------------------------------------------------
-// DemoNode — a visible rectangle node for the demo
+// Template definitions
 // ---------------------------------------------------------------------------
 
-class DemoNode : public QGraphicsRectItem, public IGraphNode {
-public:
-    DemoNode(const QString &id, const QPointF &pos = {})
-        : QGraphicsRectItem(0, 0, 100, 60)
-        , m_id(id)
-    {
-        setPos(pos);
-        setFlag(ItemIsSelectable);
-        // NOTE: intentionally do NOT set ItemIsMovable — the SelectMoveTool
-        // handles movement. Using both causes double-move and can lead to
-        // BSP-index desync when Qt's built-in move path and our tool both
-        // update positions.
-        setBrush(QColor(70, 130, 180));
-        setPen(QPen(QColor(40, 80, 120), 1.5));
-        setCursor(Qt::OpenHandCursor);
-    }
+enum TemplateIndex {
+    Tpl_RandomDAG = 0,
+    Tpl_LinearChain,
+    Tpl_BinaryTree,
+    Tpl_SignalChain,
+    Tpl_SwivelCluster,
+    Tpl_Mixed,
+    Tpl_Empty,
+};
 
-    QString nodeId() const override { return m_id; }
-
-    QList<Anchor> anchors() const override {
-        return compassAnchors(mapToScene(rect()).boundingRect());
-    }
-
-    QRectF nodeBoundingRect() const override {
-        return mapToScene(rect()).boundingRect();
-    }
-
-    QGraphicsItem *graphicsItem() override { return this; }
-
-protected:
-    // Draw the label inline instead of using a child QGraphicsSimpleTextItem.
-    // Child items participate in the scene's BSP index separately, and any
-    // lifecycle mismatch between parent and child can produce dangling
-    // pointers during paint.
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *opt, QWidget *w) override
-    {
-        QGraphicsRectItem::paint(painter, opt, w);
-        painter->save();
-        painter->setPen(Qt::white);
-        QFont f = painter->font();
-        f.setPointSize(9);
-        f.setBold(true);
-        painter->setFont(f);
-        painter->drawText(rect(), Qt::AlignCenter, m_id);
-        painter->restore();
-    }
-
-private:
-    QString m_id;
+static const char *templateNames[] = {
+    "Random DAG  (Compass nodes)",
+    "Linear chain  (Dependency nodes)",
+    "Binary tree  (Compass nodes)",
+    "Signal chain  (Port nodes)",
+    "Swivel cluster  (Swivel nodes)",
+    "Mixed showcase  (one of each)",
+    "Empty canvas",
 };
 
 // ---------------------------------------------------------------------------
@@ -102,20 +73,15 @@ DemoWindow::DemoWindow(QWidget *parent)
 {
     setWindowTitle("Graffodil Demo");
 
-    // Scene + view
     m_scene = new GraphScene(this);
     m_view = new QGraphicsView(m_scene, this);
     m_view->setRenderHint(QPainter::Antialiasing);
     m_view->setDragMode(QGraphicsView::NoDrag);
     m_view->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
-    // Enable mouse tracking so QGraphicsItem::setCursor takes effect on hover
-    // (otherwise cursor only updates while a button is held).
     m_view->setMouseTracking(true);
     setCentralWidget(m_view);
 
-    // Tools. The PanZoomTool is a shared layer that both interaction modes
-    // compose with — so middle-drag pan and wheel zoom always work,
-    // regardless of whether the left button does select or create-edge.
+    // Tools
     m_selectMoveTool = new SelectMoveTool(this);
     m_createEdgeTool = new CreateEdgeTool(this);
     m_panZoomTool = new PanZoomTool(this);
@@ -128,7 +94,6 @@ DemoWindow::DemoWindow(QWidget *parent)
     connect(m_createEdgeTool, &GraphTool::statusMessage, this, showStatus);
     connect(m_panZoomTool, &GraphTool::statusMessage, this, showStatus);
 
-    // Wire edge creation: when the tool emits edgeRequested, create a GraphEdgeItem
     connect(m_createEdgeTool, &CreateEdgeTool::edgeRequested,
             this, [this](IGraphNode *source, const QString &sourceAnchorId,
                          IGraphNode *target, const QString &targetAnchorId) {
@@ -146,7 +111,6 @@ DemoWindow::DemoWindow(QWidget *parent)
     connect(m_selectMoveTool, &SelectMoveTool::reverseRequested,
             this, &DemoWindow::onReverseRequested);
 
-    // Default mode: left=select, middle=pan, wheel=zoom, keys=select shortcuts.
     m_defaultMode = new CompositeTool(this);
     m_defaultMode->addMouseRoute(m_selectMoveTool,
                                   CompositeTool::matchButton(Qt::LeftButton, Qt::NoModifier));
@@ -159,7 +123,6 @@ DemoWindow::DemoWindow(QWidget *parent)
     m_defaultMode->addWheelRoute(m_panZoomTool, CompositeTool::matchAnyWheel());
     m_defaultMode->addKeyRoute(m_selectMoveTool);
 
-    // Create-edge mode: left=create-edge, middle=pan, wheel=zoom, keys=createedge (Esc).
     m_createMode = new CompositeTool(this);
     m_createMode->addMouseRoute(m_createEdgeTool,
                                  CompositeTool::matchButton(Qt::LeftButton));
@@ -170,24 +133,16 @@ DemoWindow::DemoWindow(QWidget *parent)
 
     m_scene->setActiveTool(m_defaultMode);
 
-    // Minimap
     m_minimap = new GraphMinimap(m_view);
-
-    // Batch renderer
     m_batchRenderer = new BatchRenderer(m_scene);
 
-    // Force layout timer
     m_forceTimer = new QTimer(this);
     m_forceTimer->setInterval(30);
     connect(m_forceTimer, &QTimer::timeout, this, &DemoWindow::forceLayoutTick);
 
-    // Side panel
     buildSidePanel();
 
-    // Status bar
-    statusBar()->showMessage("Ready — generate a graph to begin");
-
-    // Generate an initial graph
+    statusBar()->showMessage("Ready — pick a template and click Generate");
     generateGraph();
 }
 
@@ -197,6 +152,10 @@ DemoWindow::~DemoWindow()
     delete m_forceLayout;
 }
 
+// ---------------------------------------------------------------------------
+// Side panel
+// ---------------------------------------------------------------------------
+
 void DemoWindow::buildSidePanel()
 {
     auto *dock = new QDockWidget("Controls", this);
@@ -204,71 +163,131 @@ void DemoWindow::buildSidePanel()
 
     auto *scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
-    scroll->setMinimumWidth(240);
+    scroll->setMinimumWidth(280);
 
     auto *container = new QWidget;
     auto *layout = new QVBoxLayout(container);
     layout->setSpacing(8);
 
-    // --- Graph Generation ---
-    auto *genGroup = new QGroupBox("Graph Generation");
-    auto *genLayout = new QVBoxLayout(genGroup);
+    // --- Graph ---
+    auto *graphGroup = new QGroupBox("Graph");
+    auto *graphLay = new QVBoxLayout(graphGroup);
 
-    auto *nodeRow = new QHBoxLayout;
-    nodeRow->addWidget(new QLabel("Nodes:"));
-    m_nodeCountSpin = new QSpinBox;
-    m_nodeCountSpin->setRange(3, 500);
-    m_nodeCountSpin->setValue(15);
-    nodeRow->addWidget(m_nodeCountSpin);
-    genLayout->addLayout(nodeRow);
+    graphLay->addWidget(new QLabel("Template:"));
+    m_templateCombo = new QComboBox;
+    for (const char *name : templateNames)
+        m_templateCombo->addItem(name);
+    connect(m_templateCombo, &QComboBox::currentIndexChanged,
+            this, &DemoWindow::onTemplateChanged);
+    graphLay->addWidget(m_templateCombo);
 
-    auto *densityRow = new QHBoxLayout;
-    densityRow->addWidget(new QLabel("Density:"));
-    m_densitySpin = new QDoubleSpinBox;
-    m_densitySpin->setRange(0.1, 1.0);
-    m_densitySpin->setValue(0.3);
-    m_densitySpin->setSingleStep(0.1);
-    densityRow->addWidget(m_densitySpin);
-    genLayout->addLayout(densityRow);
+    // Per-template parameter pages — shown/hidden by onTemplateChanged.
+    m_paramStack = new QStackedWidget;
 
+    // Random DAG params
+    {
+        auto *page = new QWidget;
+        auto *form = new QFormLayout(page);
+        form->setContentsMargins(0, 0, 0, 0);
+        m_nodeCountSpin = new QSpinBox;
+        m_nodeCountSpin->setRange(3, 500);
+        m_nodeCountSpin->setValue(15);
+        form->addRow("Nodes:", m_nodeCountSpin);
+        m_densitySpin = new QDoubleSpinBox;
+        m_densitySpin->setRange(0.05, 1.0);
+        m_densitySpin->setSingleStep(0.05);
+        m_densitySpin->setValue(0.3);
+        form->addRow("Density:", m_densitySpin);
+        m_paramStack->addWidget(page);
+    }
+    // Linear chain params
+    {
+        auto *page = new QWidget;
+        auto *form = new QFormLayout(page);
+        form->setContentsMargins(0, 0, 0, 0);
+        m_chainLengthSpin = new QSpinBox;
+        m_chainLengthSpin->setRange(2, 30);
+        m_chainLengthSpin->setValue(6);
+        form->addRow("Length:", m_chainLengthSpin);
+        m_paramStack->addWidget(page);
+    }
+    // Binary tree params
+    {
+        auto *page = new QWidget;
+        auto *form = new QFormLayout(page);
+        form->setContentsMargins(0, 0, 0, 0);
+        m_treeDepthSpin = new QSpinBox;
+        m_treeDepthSpin->setRange(1, 6);
+        m_treeDepthSpin->setValue(4);
+        form->addRow("Depth:", m_treeDepthSpin);
+        m_paramStack->addWidget(page);
+    }
+    // Signal chain params
+    {
+        auto *page = new QWidget;
+        auto *form = new QFormLayout(page);
+        form->setContentsMargins(0, 0, 0, 0);
+        m_signalLengthSpin = new QSpinBox;
+        m_signalLengthSpin->setRange(2, 12);
+        m_signalLengthSpin->setValue(4);
+        form->addRow("Plugins:", m_signalLengthSpin);
+        m_paramStack->addWidget(page);
+    }
+    // Swivel cluster params
+    {
+        auto *page = new QWidget;
+        auto *form = new QFormLayout(page);
+        form->setContentsMargins(0, 0, 0, 0);
+        m_swivelCountSpin = new QSpinBox;
+        m_swivelCountSpin->setRange(3, 30);
+        m_swivelCountSpin->setValue(7);
+        form->addRow("Nodes:", m_swivelCountSpin);
+        m_paramStack->addWidget(page);
+    }
+    // Mixed / Empty: no params
+    m_paramStack->addWidget(new QWidget);
+    m_paramStack->addWidget(new QWidget);
+
+    graphLay->addWidget(m_paramStack);
+
+    auto *graphBtns = new QHBoxLayout;
     auto *genBtn = new QPushButton("Generate");
     connect(genBtn, &QPushButton::clicked, this, &DemoWindow::generateGraph);
-    genLayout->addWidget(genBtn);
+    graphBtns->addWidget(genBtn);
+    auto *clearBtn = new QPushButton("Clear");
+    connect(clearBtn, &QPushButton::clicked, this, &DemoWindow::clearGraph);
+    graphBtns->addWidget(clearBtn);
+    graphLay->addLayout(graphBtns);
 
-    layout->addWidget(genGroup);
+    layout->addWidget(graphGroup);
 
     // --- Layout ---
     auto *layoutGroup = new QGroupBox("Layout");
     auto *layoutLay = new QVBoxLayout(layoutGroup);
-
     m_layoutCombo = new QComboBox;
-    m_layoutCombo->addItems({"Circular", "Sugiyama", "Force"});
-    m_layoutCombo->setCurrentIndex(1); // default Sugiyama
+    m_layoutCombo->addItems({"Circular", "Sugiyama", "Force (animated)"});
+    m_layoutCombo->setCurrentIndex(1);
     layoutLay->addWidget(m_layoutCombo);
 
     auto *layoutBtnRow = new QHBoxLayout;
     m_applyLayoutBtn = new QPushButton("Apply Layout");
     connect(m_applyLayoutBtn, &QPushButton::clicked, this, &DemoWindow::applyLayout);
     layoutBtnRow->addWidget(m_applyLayoutBtn);
-
     m_stopForceBtn = new QPushButton("Stop");
     m_stopForceBtn->setVisible(false);
     connect(m_stopForceBtn, &QPushButton::clicked, this, &DemoWindow::stopForceLayout);
     layoutBtnRow->addWidget(m_stopForceBtn);
-
     layoutLay->addLayout(layoutBtnRow);
     layout->addWidget(layoutGroup);
 
-    // --- Tools ---
+    // --- Tool ---
     auto *toolGroup = new QGroupBox("Tool");
     auto *toolLay = new QVBoxLayout(toolGroup);
-
     m_toolCombo = new QComboBox;
     m_toolCombo->addItems({"Default  (Left = select / move)",
                             "Create Edge  (Left = connect nodes)"});
     connect(m_toolCombo, &QComboBox::currentIndexChanged, this, &DemoWindow::onToolChanged);
     toolLay->addWidget(m_toolCombo);
-
     layout->addWidget(toolGroup);
 
     // --- Edge Appearance ---
@@ -278,7 +297,7 @@ void DemoWindow::buildSidePanel()
     edgeLay->addWidget(new QLabel("Path Strategy:"));
     m_pathStrategyCombo = new QComboBox;
     m_pathStrategyCombo->addItems({"Direct", "Bezier", "Orthogonal", "Polyline"});
-    m_pathStrategyCombo->setCurrentIndex(1); // Bezier default
+    m_pathStrategyCombo->setCurrentIndex(1);
     connect(m_pathStrategyCombo, &QComboBox::currentIndexChanged,
             this, &DemoWindow::onPathStrategyChanged);
     edgeLay->addWidget(m_pathStrategyCombo);
@@ -293,11 +312,10 @@ void DemoWindow::buildSidePanel()
     edgeLay->addWidget(new QLabel("Target Terminus:"));
     m_targetTerminusCombo = new QComboBox;
     m_targetTerminusCombo->addItems({"None", "Triangle", "Open Arrow", "Diamond", "Circle", "Bar"});
-    m_targetTerminusCombo->setCurrentIndex(1); // Triangle default
+    m_targetTerminusCombo->setCurrentIndex(1);
     connect(m_targetTerminusCombo, &QComboBox::currentIndexChanged,
             this, &DemoWindow::onTargetTerminusChanged);
     edgeLay->addWidget(m_targetTerminusCombo);
-
     layout->addWidget(edgeGroup);
 
     // --- View ---
@@ -310,12 +328,10 @@ void DemoWindow::buildSidePanel()
     viewLay->addWidget(m_minimapCheck);
 
     m_batchCheck = new QCheckBox("Batch Rendering");
-    m_batchCheck->setChecked(false);
     connect(m_batchCheck, &QCheckBox::toggled, this, &DemoWindow::onBatchModeToggled);
     viewLay->addWidget(m_batchCheck);
 
     m_edgesAboveCheck = new QCheckBox("Edges above nodes");
-    m_edgesAboveCheck->setChecked(false);
     connect(m_edgesAboveCheck, &QCheckBox::toggled, this, &DemoWindow::onEdgesAboveToggled);
     viewLay->addWidget(m_edgesAboveCheck);
 
@@ -323,14 +339,11 @@ void DemoWindow::buildSidePanel()
     auto *fitBtn = new QPushButton("Zoom to Fit");
     connect(fitBtn, &QPushButton::clicked, this, &DemoWindow::zoomToFit);
     zoomBtnRow->addWidget(fitBtn);
-
     auto *resetBtn = new QPushButton("1:1");
     resetBtn->setToolTip("Reset zoom to 1:1");
     connect(resetBtn, &QPushButton::clicked, this, &DemoWindow::resetZoom);
     zoomBtnRow->addWidget(resetBtn);
-
     viewLay->addLayout(zoomBtnRow);
-
     layout->addWidget(viewGroup);
 
     // --- Status ---
@@ -339,61 +352,215 @@ void DemoWindow::buildSidePanel()
     layout->addWidget(m_statusLabel);
 
     layout->addStretch();
-
     scroll->setWidget(container);
     dock->setWidget(scroll);
     addDockWidget(Qt::RightDockWidgetArea, dock);
+
+    // Initialize template visibility.
+    onTemplateChanged(m_templateCombo->currentIndex());
+}
+
+void DemoWindow::onTemplateChanged(int index)
+{
+    m_paramStack->setCurrentIndex(index);
 }
 
 // ---------------------------------------------------------------------------
-// Graph Generation
+// Generators
 // ---------------------------------------------------------------------------
+
+static GraphEdgeItem *makeEdge(IGraphNode *src, const QString &srcId,
+                                IGraphNode *tgt, const QString &tgtId)
+{
+    auto *e = new GraphEdgeItem(src, srcId, tgt, tgtId, new BezierPathStrategy);
+    e->setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
+    return e;
+}
+
+static void genRandomDAG(GraphScene *scene, int count, double density)
+{
+    auto *rng = QRandomGenerator::global();
+    QVector<CompassNode *> nodes;
+    for (int i = 0; i < count; ++i) {
+        auto *n = new CompassNode(QStringLiteral("N%1").arg(i));
+        scene->addNode(n);
+        nodes.append(n);
+    }
+    for (int i = 0; i < count; ++i)
+        for (int j = i + 1; j < count; ++j)
+            if (rng->generateDouble() < density)
+                scene->addEdge(makeEdge(nodes[i], AnchorIds::Right,
+                                         nodes[j], AnchorIds::Left));
+}
+
+static void genLinearChain(GraphScene *scene, int length)
+{
+    QVector<DependencyNode *> nodes;
+    for (int i = 0; i < length; ++i) {
+        auto *n = new DependencyNode(QStringLiteral("Step %1").arg(i + 1));
+        scene->addNode(n);
+        nodes.append(n);
+    }
+    for (int i = 0; i + 1 < length; ++i)
+        scene->addEdge(makeEdge(nodes[i], AnchorIds::Right,
+                                 nodes[i + 1], AnchorIds::Left));
+}
+
+static void genBinaryTree(GraphScene *scene, int depth)
+{
+    QVector<CompassNode *> nodes;
+    const int total = (1 << depth) - 1;   // 2^depth - 1
+    for (int i = 0; i < total; ++i) {
+        auto *n = new CompassNode(QStringLiteral("N%1").arg(i));
+        scene->addNode(n);
+        nodes.append(n);
+    }
+    for (int i = 0; i < total; ++i) {
+        const int left = 2 * i + 1;
+        const int right = 2 * i + 2;
+        if (left < total)
+            scene->addEdge(makeEdge(nodes[i], AnchorIds::Bottom,
+                                     nodes[left], AnchorIds::Top));
+        if (right < total)
+            scene->addEdge(makeEdge(nodes[i], AnchorIds::Bottom,
+                                     nodes[right], AnchorIds::Top));
+    }
+}
+
+static void genSignalChain(GraphScene *scene, int length)
+{
+    // A chain of audio plugins with stereo signal + occasional sidechain.
+    QVector<PortNode *> plugins;
+    for (int i = 0; i < length; ++i) {
+        const QString id = QStringLiteral("Plugin %1").arg(i + 1);
+        PortNode *n;
+        if (i == 0)
+            n = new PortNode(id, {}, {"L", "R"});
+        else if (i == length - 1)
+            n = new PortNode(id, {"L", "R"}, {});
+        else
+            n = new PortNode(id, {"L", "R", "side"}, {"L", "R"});
+        scene->addNode(n);
+        plugins.append(n);
+    }
+    // Stereo wiring along the chain.
+    for (int i = 0; i + 1 < length; ++i) {
+        scene->addEdge(makeEdge(plugins[i], "out:L", plugins[i + 1], "in:L"));
+        scene->addEdge(makeEdge(plugins[i], "out:R", plugins[i + 1], "in:R"));
+    }
+    // A sidechain from plugin[1]'s L to plugin[2]'s "side", if available.
+    if (length >= 4)
+        scene->addEdge(makeEdge(plugins[1], "out:L", plugins[3], "in:side"));
+}
+
+static void genSwivelCluster(GraphScene *scene, int count)
+{
+    // A ring of swivel nodes plus a central hub — demonstrates dynamic
+    // anchors since edges attach wherever the boundaries face.
+    QVector<SwivelNode *> nodes;
+    for (int i = 0; i < count; ++i) {
+        auto *n = new SwivelNode(QString::number(i + 1));
+        scene->addNode(n);
+        nodes.append(n);
+    }
+    // Connect each to its neighbor (ring) with empty anchor ids — swivel.
+    for (int i = 0; i < count; ++i) {
+        const int j = (i + 1) % count;
+        scene->addEdge(makeEdge(nodes[i], QString(), nodes[j], QString()));
+    }
+    // Plus a hub connection from [0] to all others.
+    for (int i = 2; i < count; ++i)
+        scene->addEdge(makeEdge(nodes[0], QString(), nodes[i], QString()));
+}
+
+static void genMixed(GraphScene *scene)
+{
+    // One of each node type, wired together to show heterogeneous graphs.
+    auto *compass = new CompassNode("Compass");
+    auto *dep = new DependencyNode("Dependency");
+    auto *plug = new PortNode("Plugin", {"L", "R"}, {"L", "R"});
+    auto *swiv = new SwivelNode("Swivel");
+    scene->addNode(compass);
+    scene->addNode(dep);
+    scene->addNode(plug);
+    scene->addNode(swiv);
+
+    scene->addEdge(makeEdge(compass, AnchorIds::Right, dep, AnchorIds::Left));
+    scene->addEdge(makeEdge(dep, AnchorIds::Right, plug, "in:L"));
+    scene->addEdge(makeEdge(plug, "out:R", swiv, QString()));
+    scene->addEdge(makeEdge(swiv, QString(), compass, AnchorIds::Bottom));
+}
 
 void DemoWindow::generateGraph()
 {
-    // Stop any running force simulation
     stopForceLayout();
 
-    // Clear scene — library returns the removed interfaces so we can free
-    // the graphicsItems. Otherwise they'd leak and (if anything still
-    // referenced them) crash on next paint.
+    // Clear everything first — free the graphics items the scene no longer owns.
     auto cleared = m_scene->clearGraph();
     for (auto *edge : cleared.edges)
         delete edge->graphicsItem();
     for (auto *node : cleared.nodes)
         delete node->graphicsItem();
 
-    int count = m_nodeCountSpin->value();
-    double density = m_densitySpin->value();
-    auto *rng = QRandomGenerator::global();
-
-    // Create nodes
-    QVector<DemoNode *> nodes;
-    for (int i = 0; i < count; ++i) {
-        auto *node = new DemoNode(QStringLiteral("N%1").arg(i));
-        m_scene->addNode(node);
-        nodes.append(node);
+    const int tpl = m_templateCombo->currentIndex();
+    switch (tpl) {
+    case Tpl_RandomDAG:
+        genRandomDAG(m_scene, m_nodeCountSpin->value(), m_densitySpin->value());
+        break;
+    case Tpl_LinearChain:
+        genLinearChain(m_scene, m_chainLengthSpin->value());
+        break;
+    case Tpl_BinaryTree:
+        genBinaryTree(m_scene, m_treeDepthSpin->value());
+        break;
+    case Tpl_SignalChain:
+        genSignalChain(m_scene, m_signalLengthSpin->value());
+        break;
+    case Tpl_SwivelCluster:
+        genSwivelCluster(m_scene, m_swivelCountSpin->value());
+        break;
+    case Tpl_Mixed:
+        genMixed(m_scene);
+        break;
+    case Tpl_Empty:
+        // Leave blank for manual building.
+        break;
     }
 
-    // Create edges: for each pair (i, j) where i < j, add with probability = density
-    int edgeCount = 0;
-    for (int i = 0; i < count; ++i) {
-        for (int j = i + 1; j < count; ++j) {
-            if (rng->generateDouble() < density) {
-                auto *edge = new GraphEdgeItem(
-                    nodes[i], AnchorIds::Right, nodes[j], AnchorIds::Left,
-                    new BezierPathStrategy);
-                edge->setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
-                m_scene->addEdge(edge);
-                ++edgeCount;
-            }
-        }
+    // Apply current appearance settings to the new edges.
+    updateEdgeAppearance();
+
+    m_statusLabel->setText(QStringLiteral("%1 nodes, %2 edges")
+                               .arg(m_scene->nodes().size())
+                               .arg(m_scene->edges().size()));
+
+    // Auto-layout (skip for empty/swivel — swivel nodes are circular and
+    // Sugiyama assumes directional flow which doesn't match a ring).
+    if (tpl != Tpl_Empty && tpl != Tpl_SwivelCluster) {
+        applyLayout();
+    } else if (tpl == Tpl_SwivelCluster) {
+        // Arrange in a circle manually.
+        CircularLayout layout;
+        layout.setRadius(qMax(100.0, m_scene->nodes().size() * 30.0));
+        layout.setNodes(m_scene->nodes());
+        layout.setEdges(m_scene->edges());
+        m_scene->applyLayout(layout.compute());
+        fitViewToScene();
+    } else {
+        fitViewToScene();
     }
+}
 
-    m_statusLabel->setText(QStringLiteral("%1 nodes, %2 edges").arg(count).arg(edgeCount));
-
-    // Auto-apply current layout
-    applyLayout();
+void DemoWindow::clearGraph()
+{
+    stopForceLayout();
+    auto cleared = m_scene->clearGraph();
+    for (auto *edge : cleared.edges)
+        delete edge->graphicsItem();
+    for (auto *node : cleared.nodes)
+        delete node->graphicsItem();
+    m_statusLabel->setText("0 nodes, 0 edges");
+    statusBar()->showMessage("Cleared");
 }
 
 // ---------------------------------------------------------------------------
@@ -404,41 +571,32 @@ void DemoWindow::applyLayout()
 {
     stopForceLayout();
 
-    int layoutIdx = m_layoutCombo->currentIndex();
     auto sceneNodes = m_scene->nodes();
     auto sceneEdges = m_scene->edges();
-
     if (sceneNodes.isEmpty())
         return;
 
-    if (layoutIdx == 0) {
-        // Circular
+    const int idx = m_layoutCombo->currentIndex();
+    if (idx == 0) {
         CircularLayout layout;
         layout.setRadius(qMax(50.0, sceneNodes.size() * 20.0));
         layout.setNodes(sceneNodes);
         layout.setEdges(sceneEdges);
         m_scene->applyLayout(layout.compute());
-        adjustAllEdges();
         fitViewToScene();
-
-    } else if (layoutIdx == 1) {
-        // Sugiyama
+    } else if (idx == 1) {
         SugiyamaLayout layout;
-        layout.setNodeSize({100, 60});
+        layout.setNodeSize({120, 80});
         layout.setSpacing(60, 40);
         layout.setNodes(sceneNodes);
         layout.setEdges(sceneEdges);
         m_scene->applyLayout(layout.compute());
-        adjustAllEdges();
         fitViewToScene();
-
-    } else if (layoutIdx == 2) {
-        // Force — animated
+    } else if (idx == 2) {
         delete m_forceLayout;
         m_forceLayout = new ForceLayout;
         m_forceLayout->setNodes(sceneNodes);
         m_forceLayout->setEdges(sceneEdges);
-
         m_applyLayoutBtn->setEnabled(false);
         m_stopForceBtn->setVisible(true);
         m_forceTimer->start();
@@ -451,20 +609,16 @@ void DemoWindow::stopForceLayout()
     m_forceTimer->stop();
     m_stopForceBtn->setVisible(false);
     m_applyLayoutBtn->setEnabled(true);
-    if (m_forceLayout) {
+    if (m_forceLayout)
         statusBar()->showMessage("Force layout stopped");
-    }
 }
 
 void DemoWindow::forceLayoutTick()
 {
     if (!m_forceLayout)
         return;
-
-    bool running = m_forceLayout->tick();
+    const bool running = m_forceLayout->tick();
     m_scene->applyLayout(m_forceLayout->currentPositions());
-    adjustAllEdges();
-
     if (!running) {
         stopForceLayout();
         fitViewToScene();
@@ -473,7 +627,7 @@ void DemoWindow::forceLayoutTick()
 }
 
 // ---------------------------------------------------------------------------
-// Tools
+// Tools & edge appearance
 // ---------------------------------------------------------------------------
 
 void DemoWindow::onToolChanged(int index)
@@ -486,13 +640,8 @@ void DemoWindow::onToolChanged(int index)
 
 void DemoWindow::onEdgeCreated()
 {
-    // Update new edge to match current appearance settings
     updateEdgeAppearance();
 }
-
-// ---------------------------------------------------------------------------
-// Edge Appearance
-// ---------------------------------------------------------------------------
 
 static EdgePathStrategy *createStrategy(int index)
 {
@@ -520,14 +669,13 @@ static std::unique_ptr<TerminusStyle> createTerminus(int index)
 
 void DemoWindow::updateEdgeAppearance()
 {
-    int stratIdx = m_pathStrategyCombo->currentIndex();
-    int srcTermIdx = m_sourceTerminusCombo->currentIndex();
-    int tgtTermIdx = m_targetTerminusCombo->currentIndex();
+    const int stratIdx = m_pathStrategyCombo->currentIndex();
+    const int srcTermIdx = m_sourceTerminusCombo->currentIndex();
+    const int tgtTermIdx = m_targetTerminusCombo->currentIndex();
 
     for (auto *edge : m_scene->edges()) {
         auto *item = dynamic_cast<GraphEdgeItem *>(edge);
         if (!item) continue;
-
         item->setPathStrategy(createStrategy(stratIdx));
         item->setTerminus(ArrowEnd::Source, createTerminus(srcTermIdx));
         item->setTerminus(ArrowEnd::Target, createTerminus(tgtTermIdx));
@@ -535,107 +683,20 @@ void DemoWindow::updateEdgeAppearance()
     }
 }
 
-void DemoWindow::onPathStrategyChanged(int /*index*/)
-{
-    updateEdgeAppearance();
-}
-
-void DemoWindow::onSourceTerminusChanged(int /*index*/)
-{
-    updateEdgeAppearance();
-}
-
-void DemoWindow::onTargetTerminusChanged(int /*index*/)
-{
-    updateEdgeAppearance();
-}
+void DemoWindow::onPathStrategyChanged(int)  { updateEdgeAppearance(); }
+void DemoWindow::onSourceTerminusChanged(int) { updateEdgeAppearance(); }
+void DemoWindow::onTargetTerminusChanged(int) { updateEdgeAppearance(); }
 
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
 
-void DemoWindow::onMinimapToggled(bool checked)
-{
-    m_minimap->setEnabled(checked);
-}
-
-void DemoWindow::onBatchModeToggled(bool checked)
-{
-    m_batchRenderer->setBatchMode(checked);
-}
-
-void DemoWindow::onEdgesAboveToggled(bool checked)
-{
-    m_scene->setEdgesAboveNodes(checked);
-}
-
-void DemoWindow::onDeleteRequested(const QList<IGraphNode *> &nodes,
-                                   const QList<IGraphEdge *> &edges)
-{
-    // Use a set of edge pointers to de-duplicate (selection + cascade from
-    // node deletion may refer to the same edge).
-    QSet<IGraphEdge *> toDeleteEdges(edges.begin(), edges.end());
-
-    // For each selected node, collect its connected edges (library helper)
-    // so we can free them after the cascading removeNode call.
-    for (auto *node : nodes) {
-        const auto connected = m_scene->connectedEdges(node->nodeId());
-        for (auto *e : connected)
-            toDeleteEdges.insert(e);
-    }
-
-    // Remove edges explicitly selected (cascading removeNode will remove the
-    // rest from the registry).
-    for (auto *edge : edges)
-        m_scene->removeEdge(edge->edgeId());
-
-    // Remove nodes (cascades to remove any remaining connected edges from
-    // the registry and scene — but does NOT delete their graphicsItems).
-    for (auto *node : nodes)
-        m_scene->removeNode(node->nodeId());
-
-    // Now free all QGraphicsItems. Do edges first (they may reference nodes
-    // via m_source/m_target — the pointers become dangling once the nodes
-    // are freed, but we never dereference them again after this point).
-    for (auto *edge : toDeleteEdges)
-        delete edge->graphicsItem();
-    for (auto *node : nodes)
-        delete node->graphicsItem();
-
-    statusBar()->showMessage(
-        QStringLiteral("Deleted %1 node(s), %2 edge(s)")
-            .arg(nodes.size()).arg(toDeleteEdges.size()));
-}
-
-void DemoWindow::onReverseRequested(const QList<IGraphEdge *> &edges)
-{
-    int n = 0;
-    for (auto *edge : edges) {
-        if (auto *item = dynamic_cast<GraphEdgeItem *>(edge)) {
-            item->reverse();
-            ++n;
-        }
-    }
-    statusBar()->showMessage(QStringLiteral("Reversed %1 edge(s)").arg(n));
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-void DemoWindow::adjustAllEdges()
-{
-    for (auto *edge : m_scene->edges()) {
-        auto *item = dynamic_cast<GraphEdgeItem *>(edge);
-        if (item)
-            item->adjust();
-    }
-}
+void DemoWindow::onMinimapToggled(bool checked) { m_minimap->setEnabled(checked); }
+void DemoWindow::onBatchModeToggled(bool checked) { m_batchRenderer->setBatchMode(checked); }
+void DemoWindow::onEdgesAboveToggled(bool checked) { m_scene->setEdgesAboveNodes(checked); }
 
 void DemoWindow::fitViewToScene()
 {
-    // Expand the scene rect so panning has room beyond the content, then
-    // zoom the viewport to fit the content with a little margin.
     m_scene->fitSceneRectToContent(1000.0);
     QRectF content = m_scene->itemsBoundingRect();
     if (content.isEmpty())
@@ -646,8 +707,6 @@ void DemoWindow::fitViewToScene()
 void DemoWindow::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
-    // Defer the initial view fit until we have real widget geometry.
-    // fitInView during the constructor fits against a zero-sized viewport.
     if (!m_initialFitDone) {
         m_initialFitDone = true;
         fitViewToScene();
@@ -663,9 +722,50 @@ void DemoWindow::zoomToFit()
 void DemoWindow::resetZoom()
 {
     m_view->resetTransform();
-    // Center on the content if there is any.
     QRectF content = m_scene->itemsBoundingRect();
     if (!content.isEmpty())
         m_view->centerOn(content.center());
     statusBar()->showMessage("Zoom reset to 1:1");
+}
+
+// ---------------------------------------------------------------------------
+// Delete / reverse
+// ---------------------------------------------------------------------------
+
+void DemoWindow::onDeleteRequested(const QList<IGraphNode *> &nodes,
+                                   const QList<IGraphEdge *> &edges)
+{
+    QSet<IGraphEdge *> toDeleteEdges(edges.begin(), edges.end());
+    for (auto *node : nodes) {
+        const auto connected = m_scene->connectedEdges(node->nodeId());
+        for (auto *e : connected)
+            toDeleteEdges.insert(e);
+    }
+    for (auto *edge : edges)
+        m_scene->removeEdge(edge->edgeId());
+    for (auto *node : nodes)
+        m_scene->removeNode(node->nodeId());
+    for (auto *edge : toDeleteEdges)
+        delete edge->graphicsItem();
+    for (auto *node : nodes)
+        delete node->graphicsItem();
+
+    m_statusLabel->setText(QStringLiteral("%1 nodes, %2 edges")
+                               .arg(m_scene->nodes().size())
+                               .arg(m_scene->edges().size()));
+    statusBar()->showMessage(
+        QStringLiteral("Deleted %1 node(s), %2 edge(s)")
+            .arg(nodes.size()).arg(toDeleteEdges.size()));
+}
+
+void DemoWindow::onReverseRequested(const QList<IGraphEdge *> &edges)
+{
+    int n = 0;
+    for (auto *edge : edges) {
+        if (auto *item = dynamic_cast<GraphEdgeItem *>(edge)) {
+            item->reverse();
+            ++n;
+        }
+    }
+    statusBar()->showMessage(QStringLiteral("Reversed %1 edge(s)").arg(n));
 }

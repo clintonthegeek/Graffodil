@@ -144,7 +144,14 @@ void CreateEdgeTool::updatePreview(const QPointF &cursorScenePos)
         if (hovered && hovered != m_sourceNode)
             end = hoverAnchor.scenePos;
         if (m_previewLine) {
-            const QPointF start = m_sourceNode->anchor(m_sourceAnchorId).scenePos;
+            // For swivel sources (empty id), resolve the start dynamically
+            // against the current preview endpoint so the line follows the
+            // node's boundary instead of collapsing to (0,0).
+            QPointF start;
+            if (m_sourceAnchorId.isEmpty())
+                start = m_sourceNode->anchorToward(end).scenePos;
+            else
+                start = m_sourceNode->anchor(m_sourceAnchorId).scenePos;
             m_previewLine->setLine(QLineF(start, end));
         }
         if (m_highlight) {

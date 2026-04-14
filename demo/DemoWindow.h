@@ -10,6 +10,8 @@ class QPushButton;
 class QTimer;
 class QGraphicsView;
 class QLabel;
+class QWidget;
+class QStackedWidget;
 
 namespace Graffodil {
 class GraphScene;
@@ -34,7 +36,9 @@ protected:
     void showEvent(QShowEvent *event) override;
 
 private slots:
+    void onTemplateChanged(int index);
     void generateGraph();
+    void clearGraph();
     void applyLayout();
     void stopForceLayout();
     void forceLayoutTick();
@@ -55,7 +59,6 @@ private slots:
 private:
     void buildSidePanel();
     void updateEdgeAppearance();
-    void adjustAllEdges();
     void fitViewToScene();
 
     bool m_initialFitDone = false;
@@ -66,21 +69,28 @@ private:
     Graffodil::GraphMinimap *m_minimap = nullptr;
     Graffodil::BatchRenderer *m_batchRenderer = nullptr;
 
-    // Tools. PanZoomTool is shared between both modes so middle-drag pan
-    // and wheel zoom work regardless of which left-button behavior is active.
+    // Tools
     Graffodil::SelectMoveTool *m_selectMoveTool = nullptr;
     Graffodil::CreateEdgeTool *m_createEdgeTool = nullptr;
     Graffodil::PanZoomTool *m_panZoomTool = nullptr;
-    Graffodil::CompositeTool *m_defaultMode = nullptr;   // select + pan/zoom
-    Graffodil::CompositeTool *m_createMode = nullptr;    // create-edge + pan/zoom
+    Graffodil::CompositeTool *m_defaultMode = nullptr;
+    Graffodil::CompositeTool *m_createMode = nullptr;
 
     // Force layout animation
     Graffodil::ForceLayout *m_forceLayout = nullptr;
     QTimer *m_forceTimer = nullptr;
 
-    // Controls
+    // Graph controls
+    QComboBox *m_templateCombo = nullptr;
+    QStackedWidget *m_paramStack = nullptr;   // per-template parameters
     QSpinBox *m_nodeCountSpin = nullptr;
     QDoubleSpinBox *m_densitySpin = nullptr;
+    QSpinBox *m_chainLengthSpin = nullptr;
+    QSpinBox *m_treeDepthSpin = nullptr;
+    QSpinBox *m_signalLengthSpin = nullptr;
+    QSpinBox *m_swivelCountSpin = nullptr;
+
+    // Layout / tool / edge / view
     QComboBox *m_layoutCombo = nullptr;
     QPushButton *m_applyLayoutBtn = nullptr;
     QPushButton *m_stopForceBtn = nullptr;
