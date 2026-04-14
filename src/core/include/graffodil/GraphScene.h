@@ -15,6 +15,18 @@ class GraphScene : public QGraphicsScene {
 public:
     using QGraphicsScene::QGraphicsScene;
 
+    /// Default z-values. Consumers can override per-item by calling
+    /// setZValue() themselves; the scene only assigns these to items
+    /// still at the Qt default of 0.
+    static constexpr qreal DefaultNodeZ = 0.0;
+    static constexpr qreal DefaultEdgeZ = -1.0;  // below nodes
+
+    /// Flip the default z-order policy: edges rendered above nodes.
+    /// Affects subsequently added items and re-assigns existing ones
+    /// that still match the prior default.
+    void setEdgesAboveNodes(bool above);
+    bool edgesAboveNodes() const;
+
     // --- Node/edge registry ---
     void addNode(IGraphNode *node);
     void removeNode(const QString &id);
@@ -62,6 +74,7 @@ private:
     QHash<QString, IGraphNode *> m_nodes;
     QHash<QString, IGraphEdge *> m_edges;
     GraphTool *m_activeTool = nullptr;
+    bool m_edgesAboveNodes = false;
 };
 
 } // namespace Graffodil

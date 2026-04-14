@@ -19,6 +19,8 @@ class SelectMoveTool;
 class CreateEdgeTool;
 class PanZoomTool;
 class ForceLayout;
+class IGraphNode;
+class IGraphEdge;
 }
 
 class DemoWindow : public QMainWindow {
@@ -38,7 +40,11 @@ private slots:
     void onTargetTerminusChanged(int index);
     void onMinimapToggled(bool checked);
     void onBatchModeToggled(bool checked);
+    void onEdgesAboveToggled(bool checked);
     void onEdgeCreated();
+    void onDeleteRequested(const QList<Graffodil::IGraphNode *> &nodes,
+                           const QList<Graffodil::IGraphEdge *> &edges);
+    void onReverseRequested(const QList<Graffodil::IGraphEdge *> &edges);
 
 private:
     void buildSidePanel();
@@ -72,5 +78,6 @@ private:
     QComboBox *m_targetTerminusCombo = nullptr;
     QCheckBox *m_minimapCheck = nullptr;
     QCheckBox *m_batchCheck = nullptr;
+    QCheckBox *m_edgesAboveCheck = nullptr;
     QLabel *m_statusLabel = nullptr;
 };

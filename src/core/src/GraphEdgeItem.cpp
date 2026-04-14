@@ -3,6 +3,7 @@
 #include <graffodil/EdgePathStrategy.h>
 #include <graffodil/TerminusStyle.h>
 #include <QPainter>
+#include <QPainterPathStroker>
 #include <QUuid>
 
 namespace Graffodil {
@@ -56,6 +57,23 @@ void GraphEdgeItem::setWaypoints(const QList<QPointF> &waypoints)
     m_waypoints = waypoints;
 }
 
+void GraphEdgeItem::reverse()
+{
+    std::swap(m_source, m_target);
+    std::swap(m_sourceSide, m_targetSide);
+    // Terminus styles stay attached to their ends (source-end vs target-end
+    // as semantic ends, not endpoints), so swap them to preserve visual intent.
+    std::swap(m_sourceTerminus, m_targetTerminus);
+    if (!m_waypoints.isEmpty()) {
+        QList<QPointF> reversed;
+        reversed.reserve(m_waypoints.size());
+        for (int i = m_waypoints.size() - 1; i >= 0; --i)
+            reversed.append(m_waypoints[i]);
+        m_waypoints = reversed;
+    }
+    adjust();
+}
+
 void GraphEdgeItem::adjust()
 {
     if (!m_strategy || !m_source || !m_target)
@@ -77,12 +95,34 @@ QRectF GraphEdgeItem::boundingRect() const
     // Expand the path's bounding rect to include terminus shapes,
     // so the full edge (including arrowheads) is invalidated on change.
     QRectF r = QGraphicsPathItem::boundingRect();
-    qreal margin = 0;
+    qreal margin = m_hitWidth / 2.0;
     if (m_sourceTerminus)
         margin = qMax(margin, m_sourceTerminus->size());
     if (m_targetTerminus)
         margin = qMax(margin, m_targetTerminus->size());
     return r.adjusted(-margin, -margin, margin, margin);
+}
+
+QPainterPath GraphEdgeItem::shape() const
+{
+    // Stroke the path with a fixed hit-width independent of pen width.
+    // This gives a predictable, narrow clickable area along the curve
+    // regardless of path strategy or visual line thickness.
+    if (path().isEmpty())
+        return {};
+    QPainterPathStroker stroker;
+    stroker.setWidth(m_hitWidth);
+    stroker.setCapStyle(Qt::RoundCap);
+    stroker.setJoinStyle(Qt::RoundJoin);
+    return stroker.createStroke(path());
+}
+
+void GraphEdgeItem::setHitWidth(qreal width)
+{
+    if (qFuzzyCompare(m_hitWidth, width))
+        return;
+    prepareGeometryChange();
+    m_hitWidth = width;
 }
 
 void GraphEdgeItem::paint(QPainter *painter,

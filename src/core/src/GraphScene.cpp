@@ -13,7 +13,11 @@ void GraphScene::addNode(IGraphNode *node)
     if (!node || m_nodes.contains(node->nodeId()))
         return;
     m_nodes.insert(node->nodeId(), node);
-    addItem(node->graphicsItem());
+    // Only assign default z if consumer hasn't set one.
+    QGraphicsItem *gi = node->graphicsItem();
+    if (gi->zValue() == 0.0)
+        gi->setZValue(m_edgesAboveNodes ? DefaultEdgeZ : DefaultNodeZ);
+    addItem(gi);
     emit nodeAdded(node);
 }
 
@@ -43,8 +47,40 @@ void GraphScene::addEdge(IGraphEdge *edge)
     if (!edge || m_edges.contains(edge->edgeId()))
         return;
     m_edges.insert(edge->edgeId(), edge);
-    addItem(edge->graphicsItem());
+    QGraphicsItem *gi = edge->graphicsItem();
+    if (gi->zValue() == 0.0)
+        gi->setZValue(m_edgesAboveNodes ? DefaultNodeZ : DefaultEdgeZ);
+    addItem(gi);
     emit edgeAdded(edge);
+}
+
+void GraphScene::setEdgesAboveNodes(bool above)
+{
+    if (m_edgesAboveNodes == above)
+        return;
+    m_edgesAboveNodes = above;
+    // Re-assign z on items still at the prior defaults.
+    const qreal prevNodeZ = above ? DefaultNodeZ : DefaultEdgeZ;  // new meaning
+    const qreal prevEdgeZ = above ? DefaultEdgeZ : DefaultNodeZ;
+    Q_UNUSED(prevNodeZ);
+    Q_UNUSED(prevEdgeZ);
+    for (auto *node : m_nodes) {
+        QGraphicsItem *gi = node->graphicsItem();
+        qreal z = gi->zValue();
+        if (z == DefaultNodeZ || z == DefaultEdgeZ)
+            gi->setZValue(above ? DefaultEdgeZ : DefaultNodeZ);
+    }
+    for (auto *edge : m_edges) {
+        QGraphicsItem *gi = edge->graphicsItem();
+        qreal z = gi->zValue();
+        if (z == DefaultNodeZ || z == DefaultEdgeZ)
+            gi->setZValue(above ? DefaultNodeZ : DefaultEdgeZ);
+    }
+}
+
+bool GraphScene::edgesAboveNodes() const
+{
+    return m_edgesAboveNodes;
 }
 
 void GraphScene::removeEdge(const QString &id)

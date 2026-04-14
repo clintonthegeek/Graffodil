@@ -124,6 +124,11 @@ DemoWindow::DemoWindow(QWidget *parent)
         onEdgeCreated();
     });
 
+    connect(m_selectTool, &SelectMoveTool::deleteRequested,
+            this, &DemoWindow::onDeleteRequested);
+    connect(m_selectTool, &SelectMoveTool::reverseRequested,
+            this, &DemoWindow::onReverseRequested);
+
     m_scene->setActiveTool(m_selectTool);
 
     // Minimap
@@ -268,6 +273,11 @@ void DemoWindow::buildSidePanel()
     m_batchCheck->setChecked(false);
     connect(m_batchCheck, &QCheckBox::toggled, this, &DemoWindow::onBatchModeToggled);
     viewLay->addWidget(m_batchCheck);
+
+    m_edgesAboveCheck = new QCheckBox("Edges above nodes");
+    m_edgesAboveCheck->setChecked(false);
+    connect(m_edgesAboveCheck, &QCheckBox::toggled, this, &DemoWindow::onEdgesAboveToggled);
+    viewLay->addWidget(m_edgesAboveCheck);
 
     layout->addWidget(viewGroup);
 
@@ -502,6 +512,57 @@ void DemoWindow::onMinimapToggled(bool checked)
 void DemoWindow::onBatchModeToggled(bool checked)
 {
     m_batchRenderer->setBatchMode(checked);
+}
+
+void DemoWindow::onEdgesAboveToggled(bool checked)
+{
+    m_scene->setEdgesAboveNodes(checked);
+}
+
+void DemoWindow::onDeleteRequested(const QList<IGraphNode *> &nodes,
+                                   const QList<IGraphEdge *> &edges)
+{
+    // Delete edges first (they reference nodes)
+    for (auto *edge : edges)
+        m_scene->removeEdge(edge->edgeId());
+    // For each node, also remove connected edges that weren't in the selection
+    for (auto *node : nodes) {
+        QString id = node->nodeId();
+        // Collect edges to remove (modifying during iteration is unsafe)
+        QList<QString> edgeIdsToRemove;
+        for (auto *edge : m_scene->edges()) {
+            if (edge->sourceNode()->nodeId() == id
+                || edge->targetNode()->nodeId() == id) {
+                edgeIdsToRemove.append(edge->edgeId());
+            }
+        }
+        for (const auto &eid : edgeIdsToRemove)
+            m_scene->removeEdge(eid);
+        m_scene->removeNode(id);
+    }
+
+    // Delete the underlying QGraphicsItems (scene only holds non-owning refs
+    // via interfaces, so we need to free the memory ourselves)
+    for (auto *edge : edges)
+        delete edge->graphicsItem();
+    for (auto *node : nodes)
+        delete node->graphicsItem();
+
+    statusBar()->showMessage(
+        QStringLiteral("Deleted %1 node(s), %2 edge(s)")
+            .arg(nodes.size()).arg(edges.size()));
+}
+
+void DemoWindow::onReverseRequested(const QList<IGraphEdge *> &edges)
+{
+    int n = 0;
+    for (auto *edge : edges) {
+        if (auto *item = dynamic_cast<GraphEdgeItem *>(edge)) {
+            item->reverse();
+            ++n;
+        }
+    }
+    statusBar()->showMessage(QStringLiteral("Reversed %1 edge(s)").arg(n));
 }
 
 // ---------------------------------------------------------------------------

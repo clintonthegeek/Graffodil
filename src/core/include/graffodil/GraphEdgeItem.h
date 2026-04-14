@@ -37,6 +37,18 @@ public:
     Side sourceSide() const { return m_sourceSide; }
     Side targetSide() const { return m_targetSide; }
 
+    /// Swap source and target (and their sides).
+    /// Terminus styles stay on their respective ends (source-end stays on
+    /// what is now the source, etc.) so the arrow direction flips naturally.
+    void reverse();
+
+    /// Width (in scene units) of the clickable area centered on the path.
+    /// Independent of the visual pen width. Default 8.0.
+    void setHitWidth(qreal width);
+    qreal hitWidth() const { return m_hitWidth; }
+
+    QPainterPath shape() const override;
+
     QRectF boundingRect() const override;
 
 protected:
@@ -53,6 +65,7 @@ private:
     std::unique_ptr<TerminusStyle> m_sourceTerminus;
     std::unique_ptr<TerminusStyle> m_targetTerminus;
     QList<QPointF> m_waypoints;
+    qreal m_hitWidth = 8.0;
     bool m_highlighted = false;
 };
 
