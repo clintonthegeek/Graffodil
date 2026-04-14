@@ -4,6 +4,7 @@
 #include <graffodil/IGraphEdge.h>
 #include <graffodil/GraphEdgeItem.h>
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneWheelEvent>
 #include <QKeyEvent>
 
 namespace Graffodil {
@@ -247,6 +248,17 @@ void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *e)
         m_activeTool->mouseReleaseEvent(e);
     else
         QGraphicsScene::mouseReleaseEvent(e);
+}
+
+void GraphScene::wheelEvent(QGraphicsSceneWheelEvent *e)
+{
+    if (m_activeTool) {
+        m_activeTool->wheelEvent(e);
+        if (!e->isAccepted())
+            QGraphicsScene::wheelEvent(e);
+    } else {
+        QGraphicsScene::wheelEvent(e);
+    }
 }
 
 void GraphScene::keyPressEvent(QKeyEvent *e)

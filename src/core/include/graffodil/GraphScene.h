@@ -84,6 +84,7 @@ protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
+    void wheelEvent(QGraphicsSceneWheelEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
 
 private:

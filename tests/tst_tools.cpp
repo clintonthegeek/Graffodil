@@ -6,6 +6,8 @@
 #include <graffodil/SelectMoveTool.h>
 #include <graffodil/CreateEdgeTool.h>
 #include <graffodil/PanZoomTool.h>
+#include <graffodil/CompositeTool.h>
+#include <graffodil/DefaultGraphTool.h>
 #include "TestHelpers.h"
 
 using namespace Graffodil;
@@ -142,6 +144,93 @@ private slots:
         scene.setActiveTool(&tool);
         QCOMPARE(scene.activeTool(), &tool);
         QCOMPARE(tool.scene(), &scene);
+    }
+
+    void compositeRoutesLeftToFirstButMiddleToSecond() {
+        GraphScene scene;
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+
+        auto *select = new SelectMoveTool;
+        auto *panZoom = new PanZoomTool;
+        panZoom->setPanButton(Qt::MiddleButton);
+
+        CompositeTool composite;
+        composite.addMouseRoute(select, CompositeTool::matchButton(Qt::LeftButton));
+        composite.addMouseRoute(panZoom, CompositeTool::matchButton(Qt::MiddleButton));
+        scene.setActiveTool(&composite);
+
+        // Left click on node should reach SelectMoveTool and select the node.
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(50, 30));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(scene.selectedNodes().size(), 1);
+
+        // Middle-button press should NOT reach SelectMoveTool — so selection
+        // is unchanged (still n1) by a middle click elsewhere.
+        QGraphicsSceneMouseEvent mpress(QEvent::GraphicsSceneMousePress);
+        mpress.setScenePos(QPointF(500, 500));  // empty space
+        mpress.setButton(Qt::MiddleButton);
+        mpress.setButtons(Qt::MiddleButton);
+        QCoreApplication::sendEvent(&scene, &mpress);
+
+        QGraphicsSceneMouseEvent mrelease(QEvent::GraphicsSceneMouseRelease);
+        mrelease.setScenePos(QPointF(500, 500));
+        mrelease.setButton(Qt::MiddleButton);
+        mrelease.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &mrelease);
+
+        // Left click on empty would have cleared selection; middle click
+        // didn't touch selection because the SelectMoveTool wasn't reached.
+        QCOMPARE(scene.selectedNodes().size(), 1);
+
+        // Clean up sub-tools (not parented)
+        delete select;
+        delete panZoom;
+    }
+
+    void defaultToolConfiguration() {
+        DefaultGraphTool tool;
+        QVERIFY(tool.selectMoveTool() != nullptr);
+        QVERIFY(tool.panZoomTool() != nullptr);
+        // PanZoom should be configured for middle-button pan by default.
+        QCOMPARE(tool.panZoomTool()->panButton(), Qt::MiddleButton);
+        QCOMPARE(tool.panZoomTool()->zoomButton(), Qt::NoButton);
+        QCOMPARE(tool.panZoomTool()->zoomWheelModifier(), Qt::ControlModifier);
+    }
+
+    void defaultToolLeftClickSelectsNode() {
+        GraphScene scene;
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+
+        DefaultGraphTool tool;
+        scene.setActiveTool(&tool);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(50, 30));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(scene.selectedNodes().size(), 1);
     }
 };
 

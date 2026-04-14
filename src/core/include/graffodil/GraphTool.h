@@ -3,6 +3,7 @@
 #include <QObject>
 
 class QGraphicsSceneMouseEvent;
+class QGraphicsSceneWheelEvent;
 class QKeyEvent;
 
 namespace Graffodil {
@@ -20,6 +21,7 @@ public:
     virtual void mousePressEvent(QGraphicsSceneMouseEvent *event) = 0;
     virtual void mouseMoveEvent(QGraphicsSceneMouseEvent *event) = 0;
     virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) = 0;
+    virtual void wheelEvent(QGraphicsSceneWheelEvent *event);
     virtual void keyPressEvent(QKeyEvent *event);
     virtual void keyReleaseEvent(QKeyEvent *event);
 

@@ -22,6 +22,8 @@ target_sources(graffodil-core PRIVATE
     src/SelectMoveTool.cpp
     src/CreateEdgeTool.cpp
     src/PanZoomTool.cpp
+    src/CompositeTool.cpp
+    src/DefaultGraphTool.cpp
     src/AnchorHighlight.cpp
     src/GraphMinimap.cpp
     src/ConnectorItem.cpp
@@ -37,6 +39,8 @@ target_sources(graffodil-core PRIVATE
     include/graffodil/SelectMoveTool.h
     include/graffodil/CreateEdgeTool.h
     include/graffodil/PanZoomTool.h
+    include/graffodil/CompositeTool.h
+    include/graffodil/DefaultGraphTool.h
     include/graffodil/AnchorHighlight.h
     include/graffodil/GraphMinimap.h
     include/graffodil/ConnectorItem.h

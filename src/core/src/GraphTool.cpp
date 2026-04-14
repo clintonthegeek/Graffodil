@@ -13,6 +13,7 @@ void GraphTool::deactivate()
     m_scene = nullptr;
 }
 
+void GraphTool::wheelEvent(QGraphicsSceneWheelEvent *) {}
 void GraphTool::keyPressEvent(QKeyEvent *) {}
 void GraphTool::keyReleaseEvent(QKeyEvent *) {}
 

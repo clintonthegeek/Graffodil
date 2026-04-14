@@ -9,6 +9,7 @@
 #include <graffodil/SelectMoveTool.h>
 #include <graffodil/CreateEdgeTool.h>
 #include <graffodil/PanZoomTool.h>
+#include <graffodil/DefaultGraphTool.h>
 #include <graffodil/GraphMinimap.h>
 #include <graffodil/BatchRenderer.h>
 #include <graffodil/CircularLayout.h>
@@ -47,20 +48,12 @@ public:
     {
         setPos(pos);
         setFlag(ItemIsSelectable);
-        setFlag(ItemIsMovable);
+        // NOTE: intentionally do NOT set ItemIsMovable — the SelectMoveTool
+        // handles movement. Using both causes double-move and can lead to
+        // BSP-index desync when Qt's built-in move path and our tool both
+        // update positions.
         setBrush(QColor(70, 130, 180));
         setPen(QPen(QColor(40, 80, 120), 1.5));
-
-        // Label
-        auto *label = new QGraphicsSimpleTextItem(id, this);
-        label->setBrush(Qt::white);
-        QFont f = label->font();
-        f.setPointSize(9);
-        f.setBold(true);
-        label->setFont(f);
-        // Center the label
-        QRectF lr = label->boundingRect();
-        label->setPos((100 - lr.width()) / 2, (60 - lr.height()) / 2);
     }
 
     QString nodeId() const override { return m_id; }
@@ -81,6 +74,24 @@ public:
     }
 
     QGraphicsItem *graphicsItem() override { return this; }
+
+protected:
+    // Draw the label inline instead of using a child QGraphicsSimpleTextItem.
+    // Child items participate in the scene's BSP index separately, and any
+    // lifecycle mismatch between parent and child can produce dangling
+    // pointers during paint.
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *opt, QWidget *w) override
+    {
+        QGraphicsRectItem::paint(painter, opt, w);
+        painter->save();
+        painter->setPen(Qt::white);
+        QFont f = painter->font();
+        f.setPointSize(9);
+        f.setBold(true);
+        painter->setFont(f);
+        painter->drawText(rect(), Qt::AlignCenter, m_id);
+        painter->restore();
+    }
 
 private:
     QString m_id;
@@ -103,15 +114,15 @@ DemoWindow::DemoWindow(QWidget *parent)
     m_view->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
     setCentralWidget(m_view);
 
-    // Tools
-    m_selectTool = new SelectMoveTool(this);
+    // Tools — the composite DefaultGraphTool gives us left=select/move,
+    // middle=pan, Ctrl+wheel=zoom in a single active tool.
+    m_defaultTool = new DefaultGraphTool(this);
     m_createEdgeTool = new CreateEdgeTool(this);
-    m_panZoomTool = new PanZoomTool(this);
 
     auto showStatus = [this](const QString &msg) { statusBar()->showMessage(msg); };
-    connect(m_selectTool, &GraphTool::statusMessage, this, showStatus);
+    connect(m_defaultTool->selectMoveTool(), &GraphTool::statusMessage, this, showStatus);
+    connect(m_defaultTool->panZoomTool(), &GraphTool::statusMessage, this, showStatus);
     connect(m_createEdgeTool, &GraphTool::statusMessage, this, showStatus);
-    connect(m_panZoomTool, &GraphTool::statusMessage, this, showStatus);
 
     // Wire edge creation: when the tool emits edgeRequested, create a GraphEdgeItem
     connect(m_createEdgeTool, &CreateEdgeTool::edgeRequested,
@@ -125,12 +136,12 @@ DemoWindow::DemoWindow(QWidget *parent)
         onEdgeCreated();
     });
 
-    connect(m_selectTool, &SelectMoveTool::deleteRequested,
+    connect(m_defaultTool->selectMoveTool(), &SelectMoveTool::deleteRequested,
             this, &DemoWindow::onDeleteRequested);
-    connect(m_selectTool, &SelectMoveTool::reverseRequested,
+    connect(m_defaultTool->selectMoveTool(), &SelectMoveTool::reverseRequested,
             this, &DemoWindow::onReverseRequested);
 
-    m_scene->setActiveTool(m_selectTool);
+    m_scene->setActiveTool(m_defaultTool);
 
     // Minimap
     m_minimap = new GraphMinimap(m_view);
@@ -226,7 +237,8 @@ void DemoWindow::buildSidePanel()
     auto *toolLay = new QVBoxLayout(toolGroup);
 
     m_toolCombo = new QComboBox;
-    m_toolCombo->addItems({"Select / Move", "Create Edge", "Pan / Zoom"});
+    m_toolCombo->addItems({"Default (Left=select, Middle=pan, Ctrl+wheel=zoom)",
+                            "Create Edge"});
     connect(m_toolCombo, &QComboBox::currentIndexChanged, this, &DemoWindow::onToolChanged);
     toolLay->addWidget(m_toolCombo);
 
@@ -431,9 +443,8 @@ void DemoWindow::forceLayoutTick()
 void DemoWindow::onToolChanged(int index)
 {
     switch (index) {
-    case 0: m_scene->setActiveTool(m_selectTool); break;
+    case 0: m_scene->setActiveTool(m_defaultTool); break;
     case 1: m_scene->setActiveTool(m_createEdgeTool); break;
-    case 2: m_scene->setActiveTool(m_panZoomTool); break;
     }
 }
 
