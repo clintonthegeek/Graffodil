@@ -11,6 +11,8 @@ AnchorHighlight::AnchorHighlight()
 
 void AnchorHighlight::showAnchors(IGraphNode *node)
 {
+    if (m_node == node && m_visible)
+        return;  // no-op — avoids flicker from redundant geometry changes
     m_node = node;
     m_visible = true;
     prepareGeometryChange();
@@ -19,6 +21,8 @@ void AnchorHighlight::showAnchors(IGraphNode *node)
 
 void AnchorHighlight::hideAnchors()
 {
+    if (!m_visible && m_node == nullptr)
+        return;
     m_node = nullptr;
     m_visible = false;
     prepareGeometryChange();
@@ -27,6 +31,8 @@ void AnchorHighlight::hideAnchors()
 
 void AnchorHighlight::setActiveAnchor(Side side)
 {
+    if (m_activeSide == side)
+        return;
     m_activeSide = side;
     update();
 }
@@ -50,16 +56,17 @@ void AnchorHighlight::paint(QPainter *painter,
 
     painter->setRenderHint(QPainter::Antialiasing);
 
+    const QColor accent(0, 120, 215);
     for (auto side : {Side::Top, Side::Right, Side::Bottom, Side::Left}) {
         QPointF pt = m_node->anchorPoint(side);
         if (side == m_activeSide) {
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(QColor(0, 120, 215));
-            painter->drawEllipse(pt, kDotRadius, kDotRadius);
+            painter->setPen(QPen(Qt::white, 1.5));
+            painter->setBrush(accent);
+            painter->drawEllipse(pt, kDotRadius * 1.1, kDotRadius * 1.1);
         } else {
-            painter->setPen(QPen(QColor(0, 120, 215), 1.5));
-            painter->setBrush(QColor(0, 120, 215, 80));
-            painter->drawEllipse(pt, kDotRadius * 0.7, kDotRadius * 0.7);
+            painter->setPen(QPen(accent, 1.5));
+            painter->setBrush(Qt::white);
+            painter->drawEllipse(pt, kDotRadius * 0.8, kDotRadius * 0.8);
         }
     }
 }

@@ -15,8 +15,10 @@ namespace Graffodil {
 class GraphScene;
 class GraphMinimap;
 class BatchRenderer;
-class DefaultGraphTool;
+class CompositeTool;
+class SelectMoveTool;
 class CreateEdgeTool;
+class PanZoomTool;
 class ForceLayout;
 class IGraphNode;
 class IGraphEdge;
@@ -64,11 +66,13 @@ private:
     Graffodil::GraphMinimap *m_minimap = nullptr;
     Graffodil::BatchRenderer *m_batchRenderer = nullptr;
 
-    // Tools — DefaultGraphTool is a composite handling left=select/move,
-    // middle=pan, Ctrl+wheel=zoom. CreateEdgeTool remains a separate modal
-    // tool the user switches into when adding edges.
-    Graffodil::DefaultGraphTool *m_defaultTool = nullptr;
+    // Tools. PanZoomTool is shared between both modes so middle-drag pan
+    // and wheel zoom work regardless of which left-button behavior is active.
+    Graffodil::SelectMoveTool *m_selectMoveTool = nullptr;
     Graffodil::CreateEdgeTool *m_createEdgeTool = nullptr;
+    Graffodil::PanZoomTool *m_panZoomTool = nullptr;
+    Graffodil::CompositeTool *m_defaultMode = nullptr;   // select + pan/zoom
+    Graffodil::CompositeTool *m_createMode = nullptr;    // create-edge + pan/zoom
 
     // Force layout animation
     Graffodil::ForceLayout *m_forceLayout = nullptr;

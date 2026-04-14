@@ -9,7 +9,7 @@
 #include <graffodil/SelectMoveTool.h>
 #include <graffodil/CreateEdgeTool.h>
 #include <graffodil/PanZoomTool.h>
-#include <graffodil/DefaultGraphTool.h>
+#include <graffodil/CompositeTool.h>
 #include <graffodil/GraphMinimap.h>
 #include <graffodil/BatchRenderer.h>
 #include <graffodil/CircularLayout.h>
@@ -119,15 +119,20 @@ DemoWindow::DemoWindow(QWidget *parent)
     m_view->setMouseTracking(true);
     setCentralWidget(m_view);
 
-    // Tools — the composite DefaultGraphTool gives us left=select/move,
-    // middle=pan, Ctrl+wheel=zoom in a single active tool.
-    m_defaultTool = new DefaultGraphTool(this);
+    // Tools. The PanZoomTool is a shared layer that both interaction modes
+    // compose with — so middle-drag pan and wheel zoom always work,
+    // regardless of whether the left button does select or create-edge.
+    m_selectMoveTool = new SelectMoveTool(this);
     m_createEdgeTool = new CreateEdgeTool(this);
+    m_panZoomTool = new PanZoomTool(this);
+    m_panZoomTool->setPanButton(Qt::MiddleButton);
+    m_panZoomTool->setZoomButton(Qt::NoButton);
+    m_panZoomTool->setZoomWheelModifier(Qt::NoModifier);
 
     auto showStatus = [this](const QString &msg) { statusBar()->showMessage(msg); };
-    connect(m_defaultTool->selectMoveTool(), &GraphTool::statusMessage, this, showStatus);
-    connect(m_defaultTool->panZoomTool(), &GraphTool::statusMessage, this, showStatus);
+    connect(m_selectMoveTool, &GraphTool::statusMessage, this, showStatus);
     connect(m_createEdgeTool, &GraphTool::statusMessage, this, showStatus);
+    connect(m_panZoomTool, &GraphTool::statusMessage, this, showStatus);
 
     // Wire edge creation: when the tool emits edgeRequested, create a GraphEdgeItem
     connect(m_createEdgeTool, &CreateEdgeTool::edgeRequested,
@@ -141,12 +146,34 @@ DemoWindow::DemoWindow(QWidget *parent)
         onEdgeCreated();
     });
 
-    connect(m_defaultTool->selectMoveTool(), &SelectMoveTool::deleteRequested,
+    connect(m_selectMoveTool, &SelectMoveTool::deleteRequested,
             this, &DemoWindow::onDeleteRequested);
-    connect(m_defaultTool->selectMoveTool(), &SelectMoveTool::reverseRequested,
+    connect(m_selectMoveTool, &SelectMoveTool::reverseRequested,
             this, &DemoWindow::onReverseRequested);
 
-    m_scene->setActiveTool(m_defaultTool);
+    // Default mode: left=select, middle=pan, wheel=zoom, keys=select shortcuts.
+    m_defaultMode = new CompositeTool(this);
+    m_defaultMode->addMouseRoute(m_selectMoveTool,
+                                  CompositeTool::matchButton(Qt::LeftButton, Qt::NoModifier));
+    m_defaultMode->addMouseRoute(m_selectMoveTool,
+                                  CompositeTool::matchButton(Qt::LeftButton, Qt::ShiftModifier));
+    m_defaultMode->addMouseRoute(m_selectMoveTool,
+                                  CompositeTool::matchButton(Qt::LeftButton, Qt::ControlModifier));
+    m_defaultMode->addMouseRoute(m_panZoomTool,
+                                  CompositeTool::matchButton(Qt::MiddleButton));
+    m_defaultMode->addWheelRoute(m_panZoomTool, CompositeTool::matchAnyWheel());
+    m_defaultMode->addKeyRoute(m_selectMoveTool);
+
+    // Create-edge mode: left=create-edge, middle=pan, wheel=zoom, keys=createedge (Esc).
+    m_createMode = new CompositeTool(this);
+    m_createMode->addMouseRoute(m_createEdgeTool,
+                                 CompositeTool::matchButton(Qt::LeftButton));
+    m_createMode->addMouseRoute(m_panZoomTool,
+                                 CompositeTool::matchButton(Qt::MiddleButton));
+    m_createMode->addWheelRoute(m_panZoomTool, CompositeTool::matchAnyWheel());
+    m_createMode->addKeyRoute(m_createEdgeTool);
+
+    m_scene->setActiveTool(m_defaultMode);
 
     // Minimap
     m_minimap = new GraphMinimap(m_view);
@@ -242,8 +269,8 @@ void DemoWindow::buildSidePanel()
     auto *toolLay = new QVBoxLayout(toolGroup);
 
     m_toolCombo = new QComboBox;
-    m_toolCombo->addItems({"Default (Left=select, Middle=pan, Wheel=zoom)",
-                            "Create Edge"});
+    m_toolCombo->addItems({"Default  (Left = select / move)",
+                            "Create Edge  (Left = connect nodes)"});
     connect(m_toolCombo, &QComboBox::currentIndexChanged, this, &DemoWindow::onToolChanged);
     toolLay->addWidget(m_toolCombo);
 
@@ -457,8 +484,8 @@ void DemoWindow::forceLayoutTick()
 void DemoWindow::onToolChanged(int index)
 {
     switch (index) {
-    case 0: m_scene->setActiveTool(m_defaultTool); break;
-    case 1: m_scene->setActiveTool(m_createEdgeTool); break;
+    case 0: m_scene->setActiveTool(m_defaultMode); break;
+    case 1: m_scene->setActiveTool(m_createMode); break;
     }
 }
 

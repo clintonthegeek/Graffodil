@@ -8,12 +8,14 @@
 
 namespace Graffodil {
 
+static constexpr qreal kDragThreshold = 4.0;
+
 void CreateEdgeTool::activate(GraphScene *scene)
 {
     GraphTool::activate(scene);
     m_highlight = new AnchorHighlight();
     scene->addItem(m_highlight);
-    emit statusMessage(tr("Click source node, then target node"));
+    emit statusMessage(tr("Click or drag from source node to target node. Esc to cancel."));
 }
 
 void CreateEdgeTool::deactivate()
@@ -30,11 +32,15 @@ void CreateEdgeTool::deactivate()
 IGraphNode *CreateEdgeTool::findNodeAt(const QPointF &scenePos) const
 {
     if (!m_scene) return nullptr;
-    auto *item = m_scene->itemAt(scenePos, QTransform());
-    if (!item) return nullptr;
-    for (auto *node : m_scene->nodes()) {
-        if (node->graphicsItem() == item || node->graphicsItem()->isAncestorOf(item))
-            return node;
+    // items() returns the stack at the point — walk all of them so we
+    // can still find the node when an edge sits on top.
+    const auto items = m_scene->items(scenePos);
+    for (auto *item : items) {
+        for (auto *node : m_scene->nodes()) {
+            if (node->graphicsItem() == item
+                || node->graphicsItem()->isAncestorOf(item))
+                return node;
+        }
     }
     return nullptr;
 }
@@ -61,57 +67,99 @@ void CreateEdgeTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
     IGraphNode *node = findNodeAt(event->scenePos());
 
     if (!node) {
+        // Click on empty space cancels any in-progress edge and clears state.
         cancel();
         return;
     }
 
     if (!m_sourceNode) {
-        // First click: select source
+        // First interaction with a node: mark source. This serves both the
+        // click-click flow (source set now, target set by next click) and
+        // the drag flow (source set now, target set by release after drag).
         m_sourceNode = node;
         m_sourceSide = nearestSide(node, event->scenePos());
+        m_pressScenePos = event->scenePos();
+        m_sawDrag = false;
 
         QPointF start = m_sourceNode->anchorPoint(m_sourceSide);
         m_previewLine = m_scene->addLine(QLineF(start, start),
-                                          QPen(Qt::gray, 1.5, Qt::DashLine));
+                                          QPen(QColor(0, 120, 215), 1.5, Qt::DashLine));
         m_previewLine->setZValue(1000);
 
         if (m_highlight)
             m_highlight->showAnchors(m_sourceNode);
     } else {
-        // Second click: try to create edge
-        if (node != m_sourceNode) {
-            Side targetSide = nearestSide(node, event->scenePos());
-            emit edgeRequested(m_sourceNode, m_sourceSide, node, targetSide);
-        }
-        cancel();
+        // Second click of a click-click flow: try to commit against this node.
+        commitEdge(node, event->scenePos());
     }
 }
 
 void CreateEdgeTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
-    if (m_previewLine && m_sourceNode) {
-        QPointF start = m_sourceNode->anchorPoint(m_sourceSide);
-        m_previewLine->setLine(QLineF(start, event->scenePos()));
-    }
+    if (!m_sourceNode)
+        return;
 
-    // Update highlight for hovered node
-    if (m_highlight && m_scene) {
-        IGraphNode *hovered = findNodeAt(event->scenePos());
-        if (hovered && hovered != m_sourceNode) {
-            m_highlight->showAnchors(hovered);
-            m_highlight->setActiveAnchor(nearestSide(hovered, event->scenePos()));
-        } else if (!m_sourceNode || hovered == m_sourceNode) {
-            if (m_sourceNode)
-                m_highlight->showAnchors(m_sourceNode);
-            else
-                m_highlight->hideAnchors();
-        }
-    }
+    if ((event->scenePos() - m_pressScenePos).manhattanLength() > kDragThreshold)
+        m_sawDrag = true;
+
+    updatePreview(event->scenePos());
 }
 
-void CreateEdgeTool::mouseReleaseEvent(QGraphicsSceneMouseEvent * /*event*/)
+void CreateEdgeTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
-    // Two-click mode — nothing on release
+    if (!m_sourceNode || event->button() != Qt::LeftButton)
+        return;
+
+    // Only commit on release if the user actually dragged. A click-without-
+    // drag falls through to click-click mode (wait for second click).
+    if (!m_sawDrag)
+        return;
+
+    IGraphNode *target = findNodeAt(event->scenePos());
+    if (!target || target == m_sourceNode) {
+        // Dragged to empty space or back to source — cancel rather than commit.
+        cancel();
+        return;
+    }
+    commitEdge(target, event->scenePos());
+}
+
+void CreateEdgeTool::commitEdge(IGraphNode *target, const QPointF &cursorScenePos)
+{
+    if (target && target != m_sourceNode) {
+        Side targetSide = nearestSide(target, cursorScenePos);
+        emit edgeRequested(m_sourceNode, m_sourceSide, target, targetSide);
+    }
+    cancel();
+}
+
+void CreateEdgeTool::updatePreview(const QPointF &cursorScenePos)
+{
+    // Snap preview end-point to nearest anchor of the hovered node.
+    QPointF end = cursorScenePos;
+    IGraphNode *hovered = findNodeAt(cursorScenePos);
+    Side hoveredSide = Side::Right;
+    if (hovered && hovered != m_sourceNode) {
+        hoveredSide = nearestSide(hovered, cursorScenePos);
+        end = hovered->anchorPoint(hoveredSide);
+    }
+
+    if (m_previewLine && m_sourceNode) {
+        const QPointF start = m_sourceNode->anchorPoint(m_sourceSide);
+        m_previewLine->setLine(QLineF(start, end));
+    }
+
+    if (m_highlight) {
+        if (hovered && hovered != m_sourceNode) {
+            m_highlight->showAnchors(hovered);
+            m_highlight->setActiveAnchor(hoveredSide);
+        } else if (m_sourceNode) {
+            m_highlight->showAnchors(m_sourceNode);
+            m_highlight->setActiveAnchor(m_sourceSide);
+        } else {
+            m_highlight->hideAnchors();
+        }
+    }
 }
 
 void CreateEdgeTool::keyPressEvent(QKeyEvent *event)
@@ -124,6 +172,7 @@ void CreateEdgeTool::keyPressEvent(QKeyEvent *event)
 void CreateEdgeTool::cancel()
 {
     m_sourceNode = nullptr;
+    m_sawDrag = false;
     if (m_previewLine && m_scene) {
         m_scene->removeItem(m_previewLine);
         delete m_previewLine;
