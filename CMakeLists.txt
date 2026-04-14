@@ -14,5 +14,7 @@ add_subdirectory(src/force)
 add_subdirectory(src/circular)
 add_subdirectory(src/batch)
 
+add_subdirectory(demo)
+
 enable_testing()
 add_subdirectory(tests)
