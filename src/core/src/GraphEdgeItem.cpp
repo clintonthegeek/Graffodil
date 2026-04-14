@@ -4,6 +4,7 @@
 #include <graffodil/TerminusStyle.h>
 #include <QPainter>
 #include <QPainterPathStroker>
+#include <QCursor>
 #include <QUuid>
 
 namespace Graffodil {
@@ -19,6 +20,9 @@ GraphEdgeItem::GraphEdgeItem(IGraphNode *source, Side sourceSide,
     , m_strategy(strategy)
 {
     setFlag(ItemIsSelectable);
+    // Hovering an edge should signal that it's clickable.
+    setCursor(Qt::PointingHandCursor);
+    setAcceptHoverEvents(true);
 }
 
 GraphEdgeItem::~GraphEdgeItem() = default;

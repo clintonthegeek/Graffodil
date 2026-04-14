@@ -18,8 +18,6 @@ QGraphicsView *PanZoomTool::activeView() const
 void PanZoomTool::activate(GraphScene *scene)
 {
     GraphTool::activate(scene);
-    if (auto *v = activeView())
-        v->viewport()->setCursor(Qt::OpenHandCursor);
     emit statusMessage(tr("Drag to pan, scroll wheel to zoom"));
 }
 
@@ -28,7 +26,7 @@ void PanZoomTool::deactivate()
     m_isPanning = false;
     m_isZooming = false;
     if (auto *v = activeView())
-        v->viewport()->setCursor(Qt::ArrowCursor);
+        v->viewport()->unsetCursor();
     GraphTool::deactivate();
 }
 
@@ -84,12 +82,12 @@ void PanZoomTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     if (event->button() == m_panButton && m_isPanning) {
         m_isPanning = false;
         if (auto *v = activeView())
-            v->viewport()->setCursor(Qt::OpenHandCursor);
+            v->viewport()->unsetCursor();
         event->accept();
     } else if (event->button() == m_zoomButton && m_isZooming) {
         m_isZooming = false;
         if (auto *v = activeView())
-            v->viewport()->setCursor(Qt::OpenHandCursor);
+            v->viewport()->unsetCursor();
         event->accept();
     }
 }

@@ -55,6 +55,7 @@ public:
         // update positions.
         setBrush(QColor(70, 130, 180));
         setPen(QPen(QColor(40, 80, 120), 1.5));
+        setCursor(Qt::OpenHandCursor);
     }
 
     QString nodeId() const override { return m_id; }
