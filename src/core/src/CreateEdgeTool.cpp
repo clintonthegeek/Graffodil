@@ -96,12 +96,13 @@ void CreateEdgeTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
 
 void CreateEdgeTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
-    if (!m_sourceNode)
-        return;
-
-    if ((event->scenePos() - m_pressScenePos).manhattanLength() > kDragThreshold)
+    // Track drag progression for drag-to-create.
+    if (m_sourceNode
+        && (event->scenePos() - m_pressScenePos).manhattanLength() > kDragThreshold)
         m_sawDrag = true;
 
+    // Always update — so hover over a node shows which anchor will be chosen
+    // before any click.
     updatePreview(event->scenePos());
 }
 
@@ -135,29 +136,36 @@ void CreateEdgeTool::commitEdge(IGraphNode *target, const QPointF &cursorScenePo
 
 void CreateEdgeTool::updatePreview(const QPointF &cursorScenePos)
 {
-    // Snap preview end-point to nearest anchor of the hovered node.
-    QPointF end = cursorScenePos;
     IGraphNode *hovered = findNodeAt(cursorScenePos);
-    Side hoveredSide = Side::Right;
-    if (hovered && hovered != m_sourceNode) {
-        hoveredSide = nearestSide(hovered, cursorScenePos);
-        end = hovered->anchorPoint(hoveredSide);
-    }
+    Side hoveredSide = hovered ? nearestSide(hovered, cursorScenePos) : Side::Right;
 
-    if (m_previewLine && m_sourceNode) {
-        const QPointF start = m_sourceNode->anchorPoint(m_sourceSide);
-        m_previewLine->setLine(QLineF(start, end));
-    }
-
-    if (m_highlight) {
-        if (hovered && hovered != m_sourceNode) {
-            m_highlight->showAnchors(hovered);
-            m_highlight->setActiveAnchor(hoveredSide);
-        } else if (m_sourceNode) {
-            m_highlight->showAnchors(m_sourceNode);
-            m_highlight->setActiveAnchor(m_sourceSide);
-        } else {
-            m_highlight->hideAnchors();
+    if (m_sourceNode) {
+        // In-progress edge: snap preview endpoint to hovered target anchor.
+        QPointF end = cursorScenePos;
+        if (hovered && hovered != m_sourceNode)
+            end = hovered->anchorPoint(hoveredSide);
+        if (m_previewLine) {
+            const QPointF start = m_sourceNode->anchorPoint(m_sourceSide);
+            m_previewLine->setLine(QLineF(start, end));
+        }
+        if (m_highlight) {
+            if (hovered && hovered != m_sourceNode) {
+                m_highlight->showAnchors(hovered);
+                m_highlight->setActiveAnchor(hoveredSide);
+            } else {
+                m_highlight->showAnchors(m_sourceNode);
+                m_highlight->setActiveAnchor(m_sourceSide);
+            }
+        }
+    } else {
+        // Pre-click hover: show which anchor will be the source when clicked.
+        if (m_highlight) {
+            if (hovered) {
+                m_highlight->showAnchors(hovered);
+                m_highlight->setActiveAnchor(hoveredSide);
+            } else {
+                m_highlight->hideAnchors();
+            }
         }
     }
 }
