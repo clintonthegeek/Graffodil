@@ -2,8 +2,11 @@
 #include <graffodil/GraphScene.h>
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IGraphEdge.h>
+#include <graffodil/IAlignmentStrategy.h>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsRectItem>
+#include <QGraphicsItemGroup>
+#include <QGraphicsLineItem>
 #include <QKeyEvent>
 #include <QBrush>
 #include <QPen>
@@ -56,7 +59,17 @@ void SelectMoveTool::deactivate()
         m_rubberBand = nullptr;
     }
     m_rubberBanding = false;
+    if (m_guideOverlay && m_scene) {
+        m_scene->removeItem(m_guideOverlay);
+        delete m_guideOverlay;
+        m_guideOverlay = nullptr;
+    }
     GraphTool::deactivate();
+}
+
+void SelectMoveTool::setAlignmentStrategy(IAlignmentStrategy *strategy)
+{
+    m_alignment = strategy;
 }
 
 void SelectMoveTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
@@ -143,16 +156,42 @@ void SelectMoveTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 
     // Node drag
     if (m_dragNode && !m_draggedNodes.isEmpty()) {
-        QPointF delta = event->scenePos() - event->lastScenePos();
         if (!m_dragging && (event->scenePos() - m_pressScenePos).manhattanLength() < 3)
             return;  // small threshold to avoid tiny accidental moves
         const bool wasDragging = m_dragging;
         m_dragging = true;
         if (!wasDragging)
             emit dragBegan(m_draggedNodes);
+
+        const QPointF proposed = m_dragNode->graphicsItem()->pos()
+                                 + (event->scenePos() - event->lastScenePos());
+        QPointF applied = proposed;
+        QList<QLineF> guides;
+        if (m_alignment) {
+            auto result = m_alignment->align(m_dragNode, proposed, m_scene->nodes());
+            applied = result.position;
+            guides = result.guides;
+        }
+        const QPointF delta = applied - m_dragNode->graphicsItem()->pos();
         for (auto *n : m_draggedNodes) {
             n->graphicsItem()->setPos(n->graphicsItem()->pos() + delta);
             m_scene->adjustEdgesForNode(n->nodeId());
+        }
+
+        // Rebuild guide overlay.
+        if (m_guideOverlay) {
+            m_scene->removeItem(m_guideOverlay);
+            delete m_guideOverlay;
+            m_guideOverlay = nullptr;
+        }
+        if (!guides.isEmpty()) {
+            m_guideOverlay = new QGraphicsItemGroup;
+            m_guideOverlay->setZValue(9999);
+            for (const QLineF &g : guides) {
+                auto *line = new QGraphicsLineItem(g, m_guideOverlay);
+                line->setPen(QPen(QColor(255, 100, 200), 0.0, Qt::DashLine));
+            }
+            m_scene->addItem(m_guideOverlay);
         }
     }
 }
@@ -185,6 +224,11 @@ void SelectMoveTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 
     // Finalize drag
     if (m_dragNode && m_dragging) {
+        if (m_guideOverlay) {
+            m_scene->removeItem(m_guideOverlay);
+            delete m_guideOverlay;
+            m_guideOverlay = nullptr;
+        }
         for (auto *n : m_draggedNodes) {
             QPointF oldPos = m_dragStartPositions.value(n);
             QPointF newPos = n->graphicsItem()->pos();

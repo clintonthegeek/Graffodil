@@ -6,11 +6,13 @@
 #include <QPointF>
 
 class QGraphicsRectItem;
+class QGraphicsItemGroup;
 
 namespace Graffodil {
 
 class IGraphNode;
 class IGraphEdge;
+class IAlignmentStrategy;
 
 /// Select and move tool.
 ///
@@ -33,6 +35,11 @@ public:
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+
+    /// Install an alignment strategy consulted during drags. The tool
+    /// does not take ownership. Pass nullptr to disable (default).
+    void setAlignmentStrategy(IAlignmentStrategy *strategy);
+    IAlignmentStrategy *alignmentStrategy() const { return m_alignment; }
 
 signals:
     void deleteRequested(const QList<IGraphNode *> &nodes,
@@ -58,6 +65,8 @@ private:
     QHash<IGraphNode *, QPointF> m_dragStartPositions;
     QPointF m_pressScenePos;
     bool m_dragging = false;
+    IAlignmentStrategy *m_alignment = nullptr;
+    QGraphicsItemGroup *m_guideOverlay = nullptr;
 
     // Rubber-band state
     QGraphicsRectItem *m_rubberBand = nullptr;

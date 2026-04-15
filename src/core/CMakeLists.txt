@@ -33,6 +33,7 @@ target_sources(graffodil-core PRIVATE
     include/graffodil/Types.h
     include/graffodil/IGraphNode.h
     include/graffodil/IRenderableCache.h
+    include/graffodil/IAlignmentStrategy.h
     include/graffodil/Anchors.h
     include/graffodil/Logging.h
     include/graffodil/IGraphEdge.h

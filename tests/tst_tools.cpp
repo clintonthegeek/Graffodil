@@ -8,6 +8,7 @@
 #include <graffodil/PanZoomTool.h>
 #include <graffodil/CompositeTool.h>
 #include <graffodil/DefaultGraphTool.h>
+#include <graffodil/IAlignmentStrategy.h>
 #include "TestHelpers.h"
 
 using namespace Graffodil;
@@ -299,6 +300,51 @@ private slots:
 
         QCOMPARE(began.count(), 0);
         QCOMPARE(ended.count(), 0);
+    }
+
+    void selectToolAppliesAlignmentStrategy() {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+
+        // Strategy: snap x coordinate to multiples of 25.
+        struct SnapX : public IAlignmentStrategy {
+            Result align(IGraphNode *, const QPointF &proposed,
+                         const QList<IGraphNode *> &) override {
+                Result r;
+                r.position = QPointF(qRound(proposed.x() / 25.0) * 25.0, proposed.y());
+                return r;
+            }
+        };
+        SnapX snap;
+        tool.setAlignmentStrategy(&snap);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        // Drag cursor from (50, 30) to (125, 30): free delta is +75, so node
+        // pos would be (75, 0). Snap rounds the primary node's x to the
+        // nearest 25 -> 75, giving final pos (75, 0).
+        QGraphicsSceneMouseEvent move(QEvent::GraphicsSceneMouseMove);
+        move.setScenePos(QPointF(125, 30));
+        move.setLastScenePos(QPointF(50, 30));
+        move.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &move);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(125, 30));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(n1->graphicsItem()->pos(), QPointF(75, 0));
     }
 };
 
