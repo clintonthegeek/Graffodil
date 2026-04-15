@@ -146,7 +146,10 @@ void SelectMoveTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
         QPointF delta = event->scenePos() - event->lastScenePos();
         if (!m_dragging && (event->scenePos() - m_pressScenePos).manhattanLength() < 3)
             return;  // small threshold to avoid tiny accidental moves
+        const bool wasDragging = m_dragging;
         m_dragging = true;
+        if (!wasDragging)
+            emit dragBegan(m_draggedNodes);
         for (auto *n : m_draggedNodes) {
             n->graphicsItem()->setPos(n->graphicsItem()->pos() + delta);
             m_scene->adjustEdgesForNode(n->nodeId());
@@ -188,6 +191,7 @@ void SelectMoveTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
             if (oldPos != newPos)
                 emit nodeMoved(n, oldPos, newPos);
         }
+        emit dragEnded(m_draggedNodes);
     }
     m_dragNode = nullptr;
     m_draggedNodes.clear();

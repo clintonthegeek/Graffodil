@@ -40,6 +40,17 @@ signals:
     void nodeMoved(IGraphNode *node, const QPointF &oldPos, const QPointF &newPos);
     void reverseRequested(const QList<IGraphEdge *> &edges);
 
+    /// Emitted once when a drag of one or more nodes actually begins
+    /// (i.e. the cursor crosses the drag threshold after a press on a
+    /// node). Consumers typically use this to open an undo macro/compound.
+    void dragBegan(const QList<IGraphNode *> &nodes);
+
+    /// Emitted once after the final `nodeMoved` of a drag, on mouse
+    /// release. Consumers typically use this to close the undo macro
+    /// opened in dragBegan. Not emitted if the drag never started
+    /// (click without crossing the threshold).
+    void dragEnded(const QList<IGraphNode *> &nodes);
+
 private:
     // Drag state
     IGraphNode *m_dragNode = nullptr;

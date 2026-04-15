@@ -232,6 +232,74 @@ private slots:
 
         QCOMPARE(scene.selectedNodes().size(), 1);
     }
+
+    void selectToolEmitsDragBoundarySignals() {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+
+        QSignalSpy began(&tool, &SelectMoveTool::dragBegan);
+        QSignalSpy ended(&tool, &SelectMoveTool::dragEnded);
+        QSignalSpy moved(&tool, &SelectMoveTool::nodeMoved);
+
+        // Press on node centre.
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+        QCOMPARE(began.count(), 0);  // drag not yet started
+
+        // Move past the 3px threshold — this is when the drag truly begins.
+        QGraphicsSceneMouseEvent move(QEvent::GraphicsSceneMouseMove);
+        move.setScenePos(QPointF(100, 30));
+        move.setLastScenePos(QPointF(50, 30));
+        move.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &move);
+        QCOMPARE(began.count(), 1);
+
+        // Release — nodeMoved, then dragEnded, in that order.
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(100, 30));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(moved.count(), 1);
+        QCOMPARE(ended.count(), 1);
+    }
+
+    void selectToolSkipsDragSignalsOnClickWithoutMove() {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+
+        QSignalSpy began(&tool, &SelectMoveTool::dragBegan);
+        QSignalSpy ended(&tool, &SelectMoveTool::dragEnded);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(50, 30));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(began.count(), 0);
+        QCOMPARE(ended.count(), 0);
+    }
 };
 
 QTEST_MAIN(TestTools)
