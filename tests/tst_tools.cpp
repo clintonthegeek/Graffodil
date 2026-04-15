@@ -302,6 +302,38 @@ private slots:
         QCOMPARE(ended.count(), 0);
     }
 
+    void selectToolDeactivateDuringDragEmitsDragEnded() {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+
+        QSignalSpy began(&tool, &SelectMoveTool::dragBegan);
+        QSignalSpy ended(&tool, &SelectMoveTool::dragEnded);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsSceneMouseEvent move(QEvent::GraphicsSceneMouseMove);
+        move.setScenePos(QPointF(100, 30));
+        move.setLastScenePos(QPointF(50, 30));
+        move.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &move);
+
+        QCOMPARE(began.count(), 1);
+        QCOMPARE(ended.count(), 0);
+
+        // Switch tools mid-drag — dragEnded must fire even without a release.
+        scene.setActiveTool(nullptr);
+        QCOMPARE(ended.count(), 1);
+    }
+
     void selectToolAppliesAlignmentStrategy() {
         GraphScene scene;
         SelectMoveTool tool;

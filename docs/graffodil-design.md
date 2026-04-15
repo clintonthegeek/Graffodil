@@ -408,6 +408,8 @@ Graffodil tools never mutate the data model directly — they emit signals and t
 | `deleteRequested(nodes, edges)` | Delete / Backspace pressed while items are selected | Delete the items; push a delete command |
 | `reverseRequested(edges)` | R pressed while edges are selected | Call `GraphEdgeItem::reverse()`; push a reverse command |
 
+`dragEnded` fires regardless of whether any `nodeMoved` did — consumers should treat an empty `dragBegan`…`dragEnded` pair (e.g. user dragged past threshold then returned to the exact start position) as a no-op macro. `dragEnded` also fires if the tool is deactivated mid-drag (tool switch, scene teardown), again with no preceding `nodeMoved` — undo macros stay balanced.
+
 Click-without-drag does not emit `dragBegan` / `dragEnded`. Multi-select drag emits one `dragBegan`, one `nodeMoved` per moved node, and one `dragEnded` — so a consumer gets one undo macro containing N move commands per user drag.
 
 **`CreateEdgeTool`**

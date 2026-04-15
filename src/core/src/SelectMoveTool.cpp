@@ -49,6 +49,8 @@ void SelectMoveTool::activate(GraphScene *scene)
 
 void SelectMoveTool::deactivate()
 {
+    if (m_dragging)
+        emit dragEnded(m_draggedNodes);
     m_dragNode = nullptr;
     m_draggedNodes.clear();
     m_dragStartPositions.clear();
