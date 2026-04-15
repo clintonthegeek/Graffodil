@@ -39,6 +39,14 @@ void BatchNodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
     painter->setPen(Qt::NoPen);
 
     for (const auto &node : m_nodes) {
+        if (!node.cachedPixmap.isNull() && node.cachedSize.isValid()) {
+            const QRectF target(node.position.x() - node.cachedSize.width() / 2.0,
+                                node.position.y() - node.cachedSize.height() / 2.0,
+                                node.cachedSize.width(),
+                                node.cachedSize.height());
+            painter->drawPixmap(target, node.cachedPixmap, node.cachedPixmap.rect());
+            continue;
+        }
         painter->setBrush(node.color);
         if (lod < 0.3)
             painter->fillRect(QRectF(node.position.x() - node.radius, node.position.y() - node.radius,

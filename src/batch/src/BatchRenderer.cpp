@@ -1,6 +1,7 @@
 #include <graffodil/BatchRenderer.h>
 #include <graffodil/GraphScene.h>
 #include <graffodil/IGraphNode.h>
+#include <graffodil/IRenderableCache.h>
 #include <graffodil/IGraphEdge.h>
 #include "BatchNodeItem.h"
 #include "BatchEdgeItem.h"
@@ -105,6 +106,13 @@ void BatchRenderer::synchronize()
         nd.position = node->graphicsItem()->pos();
         nd.radius = qMax(node->nodeBoundingRect().width(), node->nodeBoundingRect().height()) / 2.0;
         nd.color = QColor(100, 150, 200);
+        if (auto *cache = dynamic_cast<IRenderableCache *>(node)) {
+            const QSize sz = cache->contentSize();
+            if (sz.isValid()) {
+                nd.cachedPixmap = cache->cachedPixmap(sz);
+                nd.cachedSize = QSizeF(sz);
+            }
+        }
         nodeData.append(nd);
         nodeIndexMap[node->nodeId()] = i;
     }

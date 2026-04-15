@@ -1,10 +1,28 @@
 #include <QTest>
 #include <graffodil/BatchRenderer.h>
 #include <graffodil/GraphScene.h>
+#include <graffodil/IRenderableCache.h>
+#include <QImage>
+#include <QPainter>
 #include "TestHelpers.h"
 
 using namespace Graffodil;
 using namespace Graffodil::Test;
+
+class CachedNode : public Graffodil::Test::TestNode, public Graffodil::IRenderableCache {
+public:
+    CachedNode(const QString &id, const QPointF &pos)
+        : TestNode(id, pos)
+    {
+        m_pix = QPixmap(50, 30);
+        m_pix.fill(Qt::red);
+    }
+    QPixmap cachedPixmap(const QSize &) override { return m_pix; }
+    QSize contentSize() const override { return QSize(50, 30); }
+    void invalidateCache() override { m_pix = {}; }
+private:
+    QPixmap m_pix;
+};
 
 class TestBatchRenderer : public QObject {
     Q_OBJECT
@@ -67,6 +85,28 @@ private slots:
         scene.addNode(n3);
         renderer.synchronize();
         QVERIFY(renderer.isBatchMode());
+    }
+
+    void batchCompositesCachedPixmap() {
+        GraphScene scene;
+        auto *n1 = new CachedNode("n1", {100, 100});
+        scene.addNode(n1);
+
+        BatchRenderer renderer(&scene);
+        renderer.setBatchMode(true);
+        renderer.synchronize();
+
+        // Paint the scene into an image and sample the pixel at the node centre.
+        QImage img(300, 300, QImage::Format_ARGB32);
+        img.fill(Qt::white);
+        QPainter p(&img);
+        scene.render(&p, QRectF(), QRectF(0, 0, 300, 300));
+        p.end();
+
+        const QRgb centre = img.pixel(100, 100);
+        QCOMPARE(qRed(centre), 255);
+        QVERIFY(qGreen(centre) < 50);
+        QVERIFY(qBlue(centre) < 50);
     }
 };
 

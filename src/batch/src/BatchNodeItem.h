@@ -4,6 +4,8 @@
 #include <QVector>
 #include <QPointF>
 #include <QColor>
+#include <QPixmap>
+#include <QSizeF>
 
 namespace Graffodil {
 
@@ -13,6 +15,8 @@ public:
         QPointF position;
         double radius = 5.0;
         QColor color = QColor(100, 150, 200);
+        QPixmap cachedPixmap;   // empty if the node has no IRenderableCache
+        QSizeF cachedSize;      // logical size to draw cachedPixmap at
     };
 
     BatchNodeItem(QGraphicsItem *parent = nullptr);
