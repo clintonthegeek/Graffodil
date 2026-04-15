@@ -351,7 +351,7 @@ signals:
 
 **SelectMoveTool** (~150 LOC, transplanted from PlanStan `SelectMoveTool` + Corbomite `CanvasTool`):
 - Click: select node or edge
-- Drag on node: move (with optional alignment snap guides)
+- Drag on node: move. Optional alignment via `IAlignmentStrategy` — consumers install a strategy via `setAlignmentStrategy()` to get snap behaviour and paint guide overlays; no default is shipped (consumers own the alignment policy).
 - Rubber-band drag: multi-select
 - Shift+click: toggle selection
 - Delete key: emits `deleteRequested` (consumer decides what to delete and how to undo)
@@ -393,6 +393,42 @@ signals:
 ```cpp
 class PanZoomTool : public GraphTool {};
 ```
+
+### Mutation signal catalog
+
+Graffodil tools never mutate the data model directly — they emit signals and the consumer decides. This catalog lists every mutation-relevant signal each provided tool emits, so consumers wiring an undo stack have a complete picture.
+
+**`SelectMoveTool`**
+
+| Signal | When | Typical undo action |
+|---|---|---|
+| `dragBegan(nodes)` | Cursor crosses the 3-unit threshold after press-on-node; fires once per drag | Open an undo macro / compound command |
+| `nodeMoved(node, oldPos, newPos)` | On mouse release, once per moved node in the drag set, only if the position actually changed | Push a move command into the open macro |
+| `dragEnded(nodes)` | On mouse release, after all `nodeMoved` signals for the drag | Close the undo macro |
+| `deleteRequested(nodes, edges)` | Delete / Backspace pressed while items are selected | Delete the items; push a delete command |
+| `reverseRequested(edges)` | R pressed while edges are selected | Call `GraphEdgeItem::reverse()`; push a reverse command |
+
+Click-without-drag does not emit `dragBegan` / `dragEnded`. Multi-select drag emits one `dragBegan`, one `nodeMoved` per moved node, and one `dragEnded` — so a consumer gets one undo macro containing N move commands per user drag.
+
+**`CreateEdgeTool`**
+
+| Signal | When | Typical undo action |
+|---|---|---|
+| `edgeRequested(source, sourceAnchorId, target, targetAnchorId)` | User completes a click-click or drag gesture between two distinct nodes | Construct the edge, add it to scene + model, push a create command |
+
+**`GraphScene`**
+
+| Signal | When |
+|---|---|
+| `nodeAdded(node)` / `nodeRemoved(id)` | `addNode` / `removeNode` called (structural — not user-intent) |
+| `edgeAdded(edge)` / `edgeRemoved(id)` | `addEdge` / `removeEdge` called (structural — not user-intent) |
+
+Scene signals fire from the registry calls themselves, so they do not distinguish consumer-driven additions from tool-driven ones. For undo capture, connect to tool signals, not scene signals.
+
+**Not currently emitted (by design)**
+
+- *Edge redirect* (dragging an existing edge's endpoint to a different node or anchor). No provided tool performs this yet; consumers implementing it should emit their own signal or use `GraphEdgeItem::setSourceAnchorId` / `setTargetAnchorId` through their own tool subclass.
+- *Tool-activation-as-undo-unit*. Tool switching is UI state, not data mutation — no signal.
 
 **Integration pattern:** Consumers wire tool activation to `QAction` or `KActionCollection` actions. The tools themselves are pure Qt — no KDE dependency in the library.
 
@@ -597,6 +633,27 @@ public:
 
 }
 ```
+
+### Rich-content node caching
+
+Nodes whose `paint()` is expensive (markdown, thumbnails, composed glyphs) can opt into batch-mode compositing by additionally implementing `IRenderableCache`:
+
+```cpp
+class MyCardNode : public QGraphicsItem,
+                   public Graffodil::IGraphNode,
+                   public Graffodil::IRenderableCache {
+public:
+    QPixmap cachedPixmap(const QSize &) override { return m_cache; }
+    QSize contentSize() const override { return m_logicalSize; }
+    void invalidateCache() override { m_cache = {}; }
+    // ... IGraphNode + paint() as usual
+private:
+    QPixmap m_cache;   // rebuilt when content changes
+    QSize m_logicalSize;
+};
+```
+
+When Batch mode is active, `BatchRenderer::synchronize()` queries every node via `dynamic_cast<IRenderableCache*>` and composites the returned pixmap in place of the default ellipse. Nodes that don't implement the interface fall through to the default path unchanged — this is purely additive.
 
 ---
 

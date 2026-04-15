@@ -206,3 +206,12 @@ Expansion from scouting to a full migration plan is gated on:
 When the expansion does happen, Corbomite will propose upstream patches for the three "Yes — upstream" items above, and handle the three "No — internal" items entirely within Corbomite's tree. Any friction we hit mid-migration that generalises goes into a follow-up addition to this doc.
 
 **Contact protocol:** PRs against Graffodil for the three upstream items, with this doc referenced as the design context. Feedback on the three internal-only decisions welcomed — if you ever want any of those three in Graffodil, we'll reconsider.
+
+---
+
+## Implementation status (2026-04-14)
+
+- **`IRenderableCache`** — landed in `Graffodil::Core` (`IRenderableCache.h`). Batch mode composites the cached pixmap automatically.
+- **Undo signal contract** — `dragBegan` / `dragEnded` added to `SelectMoveTool`; full signal catalog documented in `graffodil-design.md` §Mutation signal catalog.
+- **Alignment snap-guide extensibility** — `IAlignmentStrategy` interface added; `SelectMoveTool::setAlignmentStrategy()` lets consumers filter the live drag position and supply guide lines. Core ships no default implementation.
+- **Qt Quick fallback** — deferred; no API changes required.
