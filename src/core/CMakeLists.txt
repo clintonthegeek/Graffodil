@@ -32,6 +32,7 @@ target_sources(graffodil-core PRIVATE
     src/ConnectorItem.cpp
     include/graffodil/Types.h
     include/graffodil/IGraphNode.h
+    include/graffodil/IRenderableCache.h
     include/graffodil/Anchors.h
     include/graffodil/Logging.h
     include/graffodil/IGraphEdge.h
