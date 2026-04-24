@@ -45,6 +45,13 @@ public:
     void setDragOnly(bool dragOnly);
     bool isDragOnly() const { return m_dragOnly; }
 
+    /// How far outside a node's rect the hover-preview still counts as
+    /// "over that node" for anchor highlighting. Matches the radius used
+    /// by CompositeTool::addAnchorRoute so that the pointing-finger
+    /// cursor and the anchor dots appear together. Default 12.0.
+    void setAnchorHoverRadius(qreal radius) { m_anchorHoverRadius = radius; }
+    qreal anchorHoverRadius() const { return m_anchorHoverRadius; }
+
 signals:
     void edgeRequested(IGraphNode *source, const QString &sourceAnchorId,
                        IGraphNode *target, const QString &targetAnchorId);
@@ -61,6 +68,7 @@ private:
     QPointF m_pressScenePos;
     bool m_sawDrag = false;
     bool m_dragOnly = false;
+    qreal m_anchorHoverRadius = 12.0;
     QGraphicsLineItem *m_previewLine = nullptr;
     // QPointer so we notice when the scene deletes the item during its own
     // destruction — otherwise ~CreateEdgeTool would dereference a dangling

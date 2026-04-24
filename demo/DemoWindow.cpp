@@ -122,7 +122,7 @@ DemoWindow::DemoWindow(QWidget *parent)
     //  4. Wheel → PanZoomTool zoom-to-cursor.
     //  5. Keys → SelectMoveTool (Delete/Backspace/R) and CreateEdgeTool (Esc).
     m_unifiedTool = new CompositeTool(this);
-    m_unifiedTool->addAnchorRoute(m_createEdgeTool, 12.0);
+    m_unifiedTool->addAnchorRoute(m_createEdgeTool, 8.0);
     m_unifiedTool->addMouseRoute(m_selectMoveTool,
                                   CompositeTool::matchButton(Qt::LeftButton, Qt::NoModifier));
     m_unifiedTool->addMouseRoute(m_selectMoveTool,

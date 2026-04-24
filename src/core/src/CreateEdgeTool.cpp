@@ -5,6 +5,7 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsLineItem>
 #include <QKeyEvent>
+#include <QLineF>
 
 namespace Graffodil {
 
@@ -146,6 +147,22 @@ void CreateEdgeTool::commitEdge(IGraphNode *target, const QPointF &cursorScenePo
 void CreateEdgeTool::updatePreview(const QPointF &cursorScenePos)
 {
     IGraphNode *hovered = findNodeAt(cursorScenePos);
+    // Fallback: anchor dots sit on the node's edge, so a pointer that's
+    // just outside the node rect (but within the anchor hit radius) still
+    // counts as "hovering this node" for highlight purposes. Without this
+    // the dots vanish the moment the cursor lands on them.
+    if (!hovered && m_scene) {
+        qreal best = m_anchorHoverRadius;
+        for (auto *node : m_scene->nodes()) {
+            for (const Anchor &a : node->anchors()) {
+                const qreal d = QLineF(a.scenePos, cursorScenePos).length();
+                if (d <= best) {
+                    best = d;
+                    hovered = node;
+                }
+            }
+        }
+    }
     Anchor hoverAnchor;
     if (hovered)
         hoverAnchor = nearestAnchor(hovered, cursorScenePos);

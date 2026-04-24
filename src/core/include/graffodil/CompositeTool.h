@@ -89,6 +89,16 @@ private:
     QList<WheelRoute> m_wheelRoutes;
     QList<GraphTool *> m_keyRoutes;
     GraphTool *m_dragSubTool = nullptr;  // the sub-tool currently handling a drag
+
+    // When an anchor route is installed, we also track hover to swap the
+    // viewport cursor to PointingHand near an anchor (edge-creation affordance)
+    // and leave it untouched otherwise so the node's own cursor shows through.
+    // The same radius is used for the click-to-start-edge hit test and the
+    // cursor-change feedback so they always agree spatially.
+    qreal m_anchorHitRadius = 0.0;       // 0 disables anchor routing & hover
+    bool m_anchorCursorActive = false;   // did we install the PointingHand cursor
+    bool isNearAnchor(const QPointF &scenePos) const;
+    void updateHoverCursor(const QPointF &scenePos);
 };
 
 } // namespace Graffodil
