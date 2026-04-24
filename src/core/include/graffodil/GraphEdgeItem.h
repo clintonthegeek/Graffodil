@@ -2,11 +2,13 @@
 
 #include <graffodil/IGraphEdge.h>
 #include <graffodil/Types.h>
+#include <QColor>
 #include <QGraphicsPathItem>
 #include <QList>
 #include <QPointF>
 #include <QString>
 #include <memory>
+#include <optional>
 
 namespace Graffodil {
 
@@ -58,6 +60,15 @@ public:
     void setHitWidth(qreal width);
     qreal hitWidth() const { return m_hitWidth; }
 
+    /// Stroke the edge with a linear gradient running from the source endpoint
+    /// to the target endpoint. Useful for indicating directionality without
+    /// relying solely on an arrowhead. Clear with clearGradient().
+    /// The gradient is a straight-line approximation between endpoints; on
+    /// strongly curved paths the color will not track the curve.
+    void setGradient(const QColor &fromColor, const QColor &toColor);
+    void clearGradient();
+    bool hasGradient() const { return m_gradient.has_value(); }
+
     QPainterPath shape() const override;
     QRectF boundingRect() const override;
 
@@ -81,6 +92,7 @@ private:
     QList<QPointF> m_waypoints;
     qreal m_hitWidth = 8.0;
     bool m_highlighted = false;
+    std::optional<std::pair<QColor, QColor>> m_gradient;
 };
 
 } // namespace Graffodil

@@ -345,6 +345,14 @@ void DemoWindow::buildSidePanel()
     connect(m_edgesAboveCheck, &QCheckBox::toggled, this, &DemoWindow::onEdgesAboveToggled);
     viewLay->addWidget(m_edgesAboveCheck);
 
+    m_directionGradientCheck = new QCheckBox("Direction gradient");
+    m_directionGradientCheck->setToolTip(
+        "Stroke edges with a gradient from source (bright) to target (dim) "
+        "to emphasize directionality.");
+    connect(m_directionGradientCheck, &QCheckBox::toggled,
+            this, &DemoWindow::onDirectionGradientToggled);
+    viewLay->addWidget(m_directionGradientCheck);
+
     auto *zoomBtnRow = new QHBoxLayout;
     auto *fitBtn = new QPushButton("Zoom to Fit");
     connect(fitBtn, &QPushButton::clicked, this, &DemoWindow::zoomToFit);
@@ -679,6 +687,7 @@ void DemoWindow::updateEdgeAppearance()
     const int stratIdx = m_pathStrategyCombo->currentIndex();
     const int srcTermIdx = m_sourceTerminusCombo->currentIndex();
     const int tgtTermIdx = m_targetTerminusCombo->currentIndex();
+    const bool gradient = m_directionGradientCheck && m_directionGradientCheck->isChecked();
 
     for (auto *edge : m_scene->edges()) {
         auto *item = dynamic_cast<GraphEdgeItem *>(edge);
@@ -686,6 +695,10 @@ void DemoWindow::updateEdgeAppearance()
         item->setPathStrategy(createStrategy(stratIdx));
         item->setTerminus(ArrowEnd::Source, createTerminus(srcTermIdx));
         item->setTerminus(ArrowEnd::Target, createTerminus(tgtTermIdx));
+        if (gradient)
+            item->setGradient(QColor(40, 40, 40), QColor(180, 180, 180));
+        else
+            item->clearGradient();
         item->adjust();
     }
 }
@@ -701,6 +714,7 @@ void DemoWindow::onTargetTerminusChanged(int) { updateEdgeAppearance(); }
 void DemoWindow::onMinimapToggled(bool checked) { m_minimap->setEnabled(checked); }
 void DemoWindow::onBatchModeToggled(bool checked) { m_batchRenderer->setBatchMode(checked); }
 void DemoWindow::onEdgesAboveToggled(bool checked) { m_scene->setEdgesAboveNodes(checked); }
+void DemoWindow::onDirectionGradientToggled(bool) { updateEdgeAppearance(); }
 
 void DemoWindow::fitViewToScene()
 {

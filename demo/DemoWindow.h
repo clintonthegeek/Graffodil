@@ -50,6 +50,7 @@ private slots:
     void onMinimapToggled(bool checked);
     void onBatchModeToggled(bool checked);
     void onEdgesAboveToggled(bool checked);
+    void onDirectionGradientToggled(bool checked);
     void onEdgeCreated();
     void onDeleteRequested(const QList<Graffodil::IGraphNode *> &nodes,
                            const QList<Graffodil::IGraphEdge *> &edges);
@@ -99,5 +100,6 @@ private:
     QCheckBox *m_minimapCheck = nullptr;
     QCheckBox *m_batchCheck = nullptr;
     QCheckBox *m_edgesAboveCheck = nullptr;
+    QCheckBox *m_directionGradientCheck = nullptr;
     QLabel *m_statusLabel = nullptr;
 };

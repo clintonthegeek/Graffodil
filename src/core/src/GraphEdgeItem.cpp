@@ -2,6 +2,7 @@
 #include <graffodil/IGraphNode.h>
 #include <graffodil/EdgePathStrategy.h>
 #include <graffodil/TerminusStyle.h>
+#include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPathStroker>
 #include <QCursor>
@@ -48,6 +49,20 @@ void GraphEdgeItem::setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> sty
 void GraphEdgeItem::setPen(const QPen &pen)
 {
     QGraphicsPathItem::setPen(pen);
+}
+
+void GraphEdgeItem::setGradient(const QColor &fromColor, const QColor &toColor)
+{
+    m_gradient = std::make_pair(fromColor, toColor);
+    update();
+}
+
+void GraphEdgeItem::clearGradient()
+{
+    if (!m_gradient.has_value())
+        return;
+    m_gradient.reset();
+    update();
 }
 
 void GraphEdgeItem::setHighlighted(bool highlighted)
@@ -164,8 +179,6 @@ void GraphEdgeItem::paint(QPainter *painter,
     if (path().isEmpty())
         return;
 
-    painter->setRenderHint(QPainter::Antialiasing);
-
     QPen edgePen = pen();
     if (m_highlighted) {
         edgePen.setWidthF(edgePen.widthF() + 1.0);
@@ -175,16 +188,28 @@ void GraphEdgeItem::paint(QPainter *painter,
         edgePen.setWidthF(qMax(edgePen.widthF(), 1.0) + 1.5);
     }
 
-    painter->setPen(edgePen);
-    painter->setBrush(Qt::NoBrush);
-    painter->drawPath(path());
-
-    // Draw terminus styles using the path tangent at each endpoint.
     const QPainterPath &p = path();
     const qreal len = qMax(p.length(), 1.0);
     const QPointF srcPos = p.pointAtPercent(0.0);
     const QPointF tgtPos = p.pointAtPercent(1.0);
 
+    // Selection override wins over the gradient so selected edges remain
+    // obviously highlighted; terminus styles always use the solid pen color
+    // so the arrowhead reads cleanly against the background.
+    QPen strokePen = edgePen;
+    if (m_gradient.has_value() && !isSelected()) {
+        QLinearGradient grad(srcPos, tgtPos);
+        grad.setColorAt(0.0, m_gradient->first);
+        grad.setColorAt(1.0, m_gradient->second);
+        strokePen.setBrush(QBrush(grad));
+    }
+
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(strokePen);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawPath(p);
+
+    // Draw terminus styles using the path tangent at each endpoint.
     if (m_sourceTerminus) {
         QPointF fromDir = p.pointAtPercent(qMin(0.05, 10.0 / len));
         m_sourceTerminus->draw(painter, srcPos, fromDir, edgePen);
