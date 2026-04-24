@@ -19,7 +19,12 @@ CreateEdgeTool::CreateEdgeTool(QObject *parent)
 
 CreateEdgeTool::~CreateEdgeTool()
 {
-    if (m_highlight && m_highlight->scene())
+    // If the scene was destroyed first, QPointer has already been cleared
+    // and we have nothing to clean up. Otherwise take the item back from
+    // the scene (if still attached) and delete it ourselves.
+    if (!m_highlight)
+        return;
+    if (m_highlight->scene())
         m_highlight->scene()->removeItem(m_highlight);
     delete m_highlight;
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <graffodil/Types.h>
-#include <QGraphicsItem>
+#include <QGraphicsObject>
 #include <QString>
 
 namespace Graffodil {
@@ -11,7 +11,12 @@ class IGraphNode;
 /// Visual feedback for which anchor of a node the cursor is closest to.
 /// Draws a dot for each of the node's anchors; the "active" anchor (id
 /// matches m_activeAnchorId) is rendered more prominently.
-class AnchorHighlight : public QGraphicsItem {
+///
+/// Inherits QGraphicsObject (= QObject + QGraphicsItem) so consumers can
+/// guard their references with QPointer and detect scene-driven deletion
+/// without dangling.
+class AnchorHighlight : public QGraphicsObject {
+    Q_OBJECT
 public:
     AnchorHighlight();
 

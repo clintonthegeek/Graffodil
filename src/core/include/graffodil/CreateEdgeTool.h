@@ -3,6 +3,7 @@
 #include <graffodil/GraphTool.h>
 #include <graffodil/Types.h>
 #include <QPointF>
+#include <QPointer>
 #include <QString>
 
 class QGraphicsLineItem;
@@ -61,7 +62,10 @@ private:
     bool m_sawDrag = false;
     bool m_dragOnly = false;
     QGraphicsLineItem *m_previewLine = nullptr;
-    AnchorHighlight *m_highlight = nullptr;
+    // QPointer so we notice when the scene deletes the item during its own
+    // destruction — otherwise ~CreateEdgeTool would dereference a dangling
+    // pointer if the scene (a sibling QObject) is destroyed first.
+    QPointer<AnchorHighlight> m_highlight;
 };
 
 } // namespace Graffodil
