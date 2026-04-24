@@ -1,11 +1,13 @@
 #include <graffodil/GraphScene.h>
 #include <graffodil/GraphTool.h>
+#include <graffodil/GroupItem.h>
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IGraphEdge.h>
 #include <graffodil/GraphEdgeItem.h>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneWheelEvent>
 #include <QKeyEvent>
+#include <QUuid>
 
 namespace Graffodil {
 
@@ -43,6 +45,17 @@ void GraphScene::removeNode(const QString &id)
 
     removeItem(node->graphicsItem());
     m_nodes.erase(it);
+
+    // Cascade into group membership: drop this node from every group.
+    // The group item itself stays; the region just shrinks.
+    bool anyGroupTouched = false;
+    for (auto git = m_groupMembers.begin(); git != m_groupMembers.end(); ++git) {
+        if (git.value().remove(id))
+            anyGroupTouched = true;
+    }
+    if (anyGroupTouched)
+        refreshGroups();
+
     emit nodeRemoved(id);
 }
 
@@ -180,6 +193,14 @@ GraphScene::ClearResult GraphScene::clearGraph()
     }
     m_nodes.clear();
 
+    // Groups are scene-owned decorations; clearGraph() removes them too.
+    for (auto *g : m_groups) {
+        removeItem(g);
+        delete g;
+    }
+    m_groups.clear();
+    m_groupMembers.clear();
+
     return result;
 }
 
@@ -217,6 +238,141 @@ QList<IGraphEdge *> GraphScene::selectedEdges() const
     return result;
 }
 
+QString GraphScene::selectedNodeId() const
+{
+    for (auto *node : m_nodes) {
+        if (node->graphicsItem()->isSelected())
+            return node->nodeId();
+    }
+    return {};
+}
+
+void GraphScene::selectNode(const QString &id)
+{
+    IGraphNode *node = m_nodes.value(id, nullptr);
+    if (!node)
+        return;
+    clearSelection();
+    node->graphicsItem()->setSelected(true);
+}
+
+// ---------------------------------------------------------------------
+// Group regions
+// ---------------------------------------------------------------------
+//
+// Tracking strategy: we hook QGraphicsScene::changed (the signal Qt
+// emits after any item invalidation, including position changes from
+// interactive drags and programmatic setPos) and refresh all registered
+// groups. This is cheap for a small number of groups and correctly
+// covers every case that moves a node — we don't have to instrument
+// each tool or layout separately.
+
+QString GraphScene::addGroup(const QSet<QString> &memberNodeIds,
+                             const GroupStyle &style)
+{
+    const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+
+    auto *item = new GroupItem(id, style);
+    m_groups.insert(id, item);
+    m_groupMembers.insert(id, memberNodeIds);
+    addItem(item);
+
+    if (!m_groupsChangeConnected) {
+        connect(this, &QGraphicsScene::changed,
+                this, &GraphScene::refreshGroupsFromSceneChange,
+                Qt::UniqueConnection);
+        m_groupsChangeConnected = true;
+    }
+
+    refreshGroups();
+    return id;
+}
+
+void GraphScene::setGroupStyle(const QString &groupId, const GroupStyle &style)
+{
+    GroupItem *item = m_groups.value(groupId, nullptr);
+    if (!item)
+        return;
+    item->setStyle(style);
+    // Padding change affects bounds; recompute.
+    refreshGroups();
+}
+
+void GraphScene::setGroupMembers(const QString &groupId,
+                                 const QSet<QString> &memberNodeIds)
+{
+    if (!m_groups.contains(groupId))
+        return;
+    m_groupMembers[groupId] = memberNodeIds;
+    refreshGroups();
+}
+
+void GraphScene::removeGroup(const QString &groupId)
+{
+    auto it = m_groups.find(groupId);
+    if (it == m_groups.end())
+        return;
+    GroupItem *item = it.value();
+    removeItem(item);
+    delete item; // scene owns GroupItems
+    m_groups.erase(it);
+    m_groupMembers.remove(groupId);
+}
+
+QStringList GraphScene::groupIds() const
+{
+    return m_groups.keys();
+}
+
+QSet<QString> GraphScene::groupMembers(const QString &groupId) const
+{
+    return m_groupMembers.value(groupId);
+}
+
+GroupItem *GraphScene::groupItem(const QString &groupId) const
+{
+    return m_groups.value(groupId, nullptr);
+}
+
+void GraphScene::refreshGroupsFromSceneChange(const QList<QRectF> &)
+{
+    if (m_refreshingGroups)
+        return; // changed() re-emits while we repaint; guard against recursion
+    refreshGroups();
+}
+
+void GraphScene::refreshGroups()
+{
+    if (m_groups.isEmpty())
+        return;
+
+    m_refreshingGroups = true;
+    for (auto it = m_groups.begin(); it != m_groups.end(); ++it) {
+        const QString &gid = it.key();
+        GroupItem *item = it.value();
+        const QSet<QString> &memberIds = m_groupMembers.value(gid);
+
+        QRectF unionRect;
+        bool first = true;
+        for (const QString &mid : memberIds) {
+            IGraphNode *n = m_nodes.value(mid, nullptr);
+            if (!n)
+                continue;
+            QRectF r = n->nodeBoundingRect();
+            if (first) { unionRect = r; first = false; }
+            else        { unionRect = unionRect.united(r); }
+        }
+
+        QRectF padded;
+        if (!first && !unionRect.isNull()) {
+            const qreal p = item->style().padding;
+            padded = unionRect.adjusted(-p, -p, p, p);
+        }
+        item->setBounds(padded);
+    }
+    m_refreshingGroups = false;
+}
+
 void GraphScene::applyLayout(const LayoutResult &result)
 {
     for (auto it = result.nodePositions.constBegin();
@@ -225,6 +381,10 @@ void GraphScene::applyLayout(const LayoutResult &result)
             node->graphicsItem()->setPos(it.value());
     }
     adjustAllEdges();
+    // Groups derive from member positions; refresh synchronously so
+    // callers that query bounds right after applyLayout() see fresh data
+    // instead of waiting for the next scene->changed emission.
+    refreshGroups();
 }
 
 void GraphScene::adjustEdgesForNode(const QString &nodeId)

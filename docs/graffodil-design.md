@@ -109,6 +109,13 @@ public:
     virtual IGraphNode *sourceNode() const = 0;
     virtual IGraphNode *targetNode() const = 0;
 
+    // Fast-path endpoint ids — default-implemented in terms of
+    // sourceNode()/targetNode(), returns empty string if null.
+    // Useful in tight loops (hover trace, edge dispatch) where a
+    // full dereference is unnecessary.
+    QString sourceNodeId() const;
+    QString targetNodeId() const;
+
     // Bridge to QGraphicsItem, same pattern as IGraphNode.
     virtual QGraphicsItem *graphicsItem() = 0;
 };
@@ -170,11 +177,38 @@ public:
     QList<IGraphNode *> selectedNodes() const;
     QList<IGraphEdge *> selectedEdges() const;
 
+    // Id of the first registered node currently selected (or empty).
+    QString selectedNodeId() const;
+
+    // Clear selection and select the node with this id.
+    void selectNode(const QString &id);
+
+    // --- Group regions ---
+
+    // A group is a decorative backdrop drawn behind a set of member
+    // nodes — a rounded, padded rect (with optional fill/border/title)
+    // that tracks the members as they move. Groups never intercept
+    // mouse events on members; they are purely visual. Members may
+    // overlap multiple groups (layer via GroupStyle::zValue). Removing
+    // a node cascades into any group containing it.
+
+    QString addGroup(const QSet<QString> &memberNodeIds,
+                     const GroupStyle &style);
+    void setGroupStyle  (const QString &groupId, const GroupStyle &style);
+    void setGroupMembers(const QString &groupId, const QSet<QString> &memberNodeIds);
+    void removeGroup    (const QString &groupId);
+
+    QStringList  groupIds() const;
+    QSet<QString> groupMembers(const QString &groupId) const;
+    GroupItem    *groupItem(const QString &groupId) const;
+
     // --- Layout ---
 
     // Applies computed positions to registered nodes.
     // For edges: if edgeWaypoints are provided and the edge is a
     // GraphEdgeItem, waypoints are passed to the path strategy.
+    // Groups refresh their bounds synchronously after the layout
+    // is applied.
     void applyLayout(const LayoutResult &result);
 
 signals:
@@ -197,6 +231,39 @@ protected:
 **Ownership model:** The scene manages the QGraphicsItem lifetime (standard Qt parent-child ownership via `QGraphicsScene::addItem()`). The `IGraphNode`/`IGraphEdge` wrapper objects are owned by the consumer — the scene holds non-owning pointers and removes them from its registry on `removeNode()`/`removeEdge()`.
 
 **Layout agnosticism:** The scene does not require a layout engine. Consumers can position nodes manually (Canvas), via a one-shot layout (Sugiyama, Circular), via an animated simulation (Force), or by deserializing saved positions. The scene neither knows nor cares which approach is used.
+
+### Group regions
+
+Groups are styled backdrops — a rounded padded rect with optional fill, border, and title — drawn behind a set of member nodes. They support use cases like compound milestones, cluster highlighting, and sub-graph decoration.
+
+```cpp
+namespace Graffodil {
+
+struct GroupStyle {
+    QColor borderColor    = Qt::transparent;
+    qreal  borderWidth    = 1.0;
+    Qt::PenStyle borderStyle = Qt::DashLine;
+    QColor fillColor      = Qt::transparent;
+    qreal  cornerRadius   = 8.0;
+    qreal  padding        = 16.0;  // halo around member bounds
+    QString title;                 // empty = no label
+    QColor  titleColor    = Qt::white;
+    qreal   zValue        = -2.0;  // default: below nodes & edges
+};
+
+class GroupItem : public QGraphicsObject {
+    // Backdrop drawable. shape() returns an empty path so the item
+    // never participates in hit-testing — members remain fully
+    // interactive. Consumers normally don't instantiate this directly;
+    // GraphScene::addGroup() owns the lifetime.
+};
+
+} // namespace Graffodil
+```
+
+**Tracking:** GraphScene connects to its own `QGraphicsScene::changed` signal once the first group is added. On each emission (which fires for interactive drags, `applyLayout()`, `setPos()`, and any other item invalidation) every registered group recomputes the union of its members' `nodeBoundingRect()` values, pads by `GroupStyle::padding`, and pushes the result to its `GroupItem`. A recursion guard prevents re-entry while a refresh is in flight. `applyLayout()` also performs a synchronous refresh so callers that query `groupItem(id)->bounds()` immediately after the layout see fresh data.
+
+**Ownership:** GroupItems are owned by the scene — `removeGroup()` and `clearGraph()` delete them. Member ids in the registry are authoritative; resolving them to `IGraphNode*` happens lazily on every refresh, so nodes removed via `removeNode()` drop out of group membership automatically.
 
 ---
 
@@ -506,6 +573,18 @@ namespace Graffodil {
 
 class SugiyamaLayout : public LayoutEngine {
 public:
+    // Layout orientation. Default is LeftToRight (matches the engine's
+    // historical output). For TopToBottom / BottomToTop the layer axis
+    // becomes Y and the within-layer axis becomes X; setSpacing()
+    // values are re-interpreted so `horizontal` is always the output
+    // X-axis gap and `vertical` is always the Y-axis gap.
+    enum class Direction {
+        LeftToRight, RightToLeft, TopToBottom, BottomToTop
+    };
+
+    void setDirection(Direction d);
+    Direction direction() const;
+
     void setNodeSize(const QSizeF &size);
     void setSpacing(qreal horizontal, qreal vertical);
 
@@ -521,6 +600,8 @@ public:
 
 }
 ```
+
+**Orientation agnosticism:** `compute()` produces positions in an internal (layer-axis, within-layer-axis) frame using direction-appropriate extents and gaps, then applies a final transform — X-axis mirror for `RightToLeft`, axis swap for `TopToBottom`, both for `BottomToTop` — to both `nodePositions` and `edgeWaypoints`. The layout is otherwise identical across directions: the same crossing-minimization result, the same component stacking, the same spine alignment. Consumers can flip orientation interactively without rebuilding the scene.
 
 **PlanStan integration** (no regression to CPM calculations):
 ```cpp
@@ -734,7 +815,9 @@ Graffodil/
 │   │   │   ├── LayoutResult.h
 │   │   │   ├── GraphMinimap.h
 │   │   │   ├── AnchorHighlight.h
-│   │   │   └── ConnectorItem.h
+│   │   │   ├── ConnectorItem.h
+│   │   │   ├── GroupStyle.h
+│   │   │   └── GroupItem.h
 │   │   └── src/
 │   ├── sugiyama/
 │   │   ├── CMakeLists.txt                  # Graffodil::Sugiyama
@@ -761,6 +844,7 @@ Graffodil/
 │       └── src/
 └── tests/
     ├── tst_graphscene.cpp
+    ├── tst_groups.cpp
     ├── tst_edgepathstrategies.cpp
     ├── tst_terminus.cpp
     ├── tst_sugiyama.cpp

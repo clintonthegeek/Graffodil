@@ -214,6 +214,38 @@ private slots:
         edge->adjust();
         QVERIFY(!edge->path().isEmpty());
     }
+
+    void testEdgeEndpointIdShortcuts() {
+        // IGraphEdge::sourceNodeId()/targetNodeId() default-impls
+        // mirror the endpoint nodeId() without requiring dereference.
+        TestNode src("src"), tgt("tgt");
+        TestEdge edge("e", &src, &tgt);
+        QCOMPARE(edge.sourceNodeId(), QString("src"));
+        QCOMPARE(edge.targetNodeId(), QString("tgt"));
+    }
+
+    void testSelectedNodeIdConvenience() {
+        GraphScene scene;
+        auto *n1 = new TestNode("alpha");
+        auto *n2 = new TestNode("beta");
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        n2->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+        scene.addNode(n2);
+
+        QCOMPARE(scene.selectedNodeId(), QString());  // nothing selected
+
+        scene.selectNode("beta");
+        QCOMPARE(scene.selectedNodeId(), QString("beta"));
+
+        scene.selectNode("alpha");
+        // Selecting a node must first clear the prior selection.
+        QCOMPARE(scene.selectedNodes().size(), 1);
+        QCOMPARE(scene.selectedNodeId(), QString("alpha"));
+
+        scene.selectNode("unknown");  // no-op
+        QCOMPARE(scene.selectedNodeId(), QString("alpha"));
+    }
 };
 
 QTEST_MAIN(TestInterfaces)

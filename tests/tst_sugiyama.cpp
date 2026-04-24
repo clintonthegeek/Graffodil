@@ -113,6 +113,152 @@ private slots:
         SugiyamaLayout layout;
         QVERIFY(!layout.isIterative());
     }
+
+    void defaultDirectionIsLeftToRight() {
+        SugiyamaLayout layout;
+        QCOMPARE(layout.direction(), SugiyamaLayout::Direction::LeftToRight);
+    }
+
+    void rightToLeftMirrorsXAxis() {
+        // A -> B -> C: in LR, A has smallest X; in RL, A has largest X.
+        TestNode a("A"), b("B"), c("C");
+        TestEdge e1("e1", &a, &b), e2("e2", &b, &c);
+
+        SugiyamaLayout lr;
+        lr.setNodeSize({100, 60});
+        lr.setSpacing(60, 40);
+        lr.setNodes({&a, &b, &c});
+        lr.setEdges({&e1, &e2});
+        auto rLR = lr.compute();
+
+        SugiyamaLayout rl;
+        rl.setNodeSize({100, 60});
+        rl.setSpacing(60, 40);
+        rl.setDirection(SugiyamaLayout::Direction::RightToLeft);
+        rl.setNodes({&a, &b, &c});
+        rl.setEdges({&e1, &e2});
+        auto rRL = rl.compute();
+
+        // Layer ordering is reversed along X
+        QVERIFY(rRL.nodePositions["A"].x() > rRL.nodePositions["B"].x());
+        QVERIFY(rRL.nodePositions["B"].x() > rRL.nodePositions["C"].x());
+
+        // RL's positions are the LR positions mirrored about the layout's
+        // X center: A's X in RL == C's X in LR (layer 0 <-> layer maxLayer).
+        QCOMPARE(rRL.nodePositions["A"].x(), rLR.nodePositions["C"].x());
+        QCOMPARE(rRL.nodePositions["C"].x(), rLR.nodePositions["A"].x());
+
+        // Y axis is untouched.
+        QCOMPARE(rRL.nodePositions["A"].y(), rLR.nodePositions["A"].y());
+    }
+
+    void topToBottomSwapsAxes() {
+        // A -> B -> C: in TB, A should have smallest Y, C largest.
+        TestNode a("A"), b("B"), c("C");
+        TestEdge e1("e1", &a, &b), e2("e2", &b, &c);
+
+        SugiyamaLayout layout;
+        layout.setNodeSize({100, 60});
+        layout.setSpacing(60, 40);
+        layout.setDirection(SugiyamaLayout::Direction::TopToBottom);
+        layout.setNodes({&a, &b, &c});
+        layout.setEdges({&e1, &e2});
+
+        auto result = layout.compute();
+        QVERIFY(result.nodePositions["A"].y() < result.nodePositions["B"].y());
+        QVERIFY(result.nodePositions["B"].y() < result.nodePositions["C"].y());
+        // Chain of three should share the same X (all in one within-layer "column").
+        QCOMPARE(result.nodePositions["A"].x(), result.nodePositions["B"].x());
+        QCOMPARE(result.nodePositions["B"].x(), result.nodePositions["C"].x());
+    }
+
+    void bottomToTopMirrorsYAxis() {
+        TestNode a("A"), b("B"), c("C");
+        TestEdge e1("e1", &a, &b), e2("e2", &b, &c);
+
+        SugiyamaLayout tb;
+        tb.setNodeSize({100, 60});
+        tb.setSpacing(60, 40);
+        tb.setDirection(SugiyamaLayout::Direction::TopToBottom);
+        tb.setNodes({&a, &b, &c});
+        tb.setEdges({&e1, &e2});
+        auto rTB = tb.compute();
+
+        SugiyamaLayout bt;
+        bt.setNodeSize({100, 60});
+        bt.setSpacing(60, 40);
+        bt.setDirection(SugiyamaLayout::Direction::BottomToTop);
+        bt.setNodes({&a, &b, &c});
+        bt.setEdges({&e1, &e2});
+        auto rBT = bt.compute();
+
+        // Chain ordering along Y is reversed
+        QVERIFY(rBT.nodePositions["A"].y() > rBT.nodePositions["B"].y());
+        QVERIFY(rBT.nodePositions["B"].y() > rBT.nodePositions["C"].y());
+
+        // Mirror identity: A's Y in BT equals C's Y in TB.
+        QCOMPARE(rBT.nodePositions["A"].y(), rTB.nodePositions["C"].y());
+        QCOMPARE(rBT.nodePositions["C"].y(), rTB.nodePositions["A"].y());
+    }
+
+    void waypointsFollowDirection() {
+        // A -> C with a 2-layer gap (via B) but only the A->C edge: the
+        // long edge generates a dummy waypoint. For TB that waypoint
+        // must lie between A and C on Y (not X).
+        TestNode a("A"), b("B"), c("C");
+        TestEdge ab("ab", &a, &b), bc("bc", &b, &c), ac("ac", &a, &c);
+
+        SugiyamaLayout layout;
+        layout.setNodeSize({100, 60});
+        layout.setSpacing(60, 40);
+        layout.setDirection(SugiyamaLayout::Direction::TopToBottom);
+        layout.setNodes({&a, &b, &c});
+        layout.setEdges({&ab, &bc, &ac});
+
+        auto result = layout.compute();
+        auto key = qMakePair(QString("A"), QString("C"));
+        QVERIFY(result.edgeWaypoints.contains(key));
+        const auto &wps = result.edgeWaypoints[key];
+        QCOMPARE(wps.size(), 1);
+
+        // Waypoint Y should sit between A and C (layer axis is Y in TB).
+        const qreal wpY = wps.first().y();
+        QVERIFY(wpY > result.nodePositions["A"].y());
+        QVERIFY(wpY < result.nodePositions["C"].y());
+    }
+
+    void directionDoesNotBreakNonOverlap() {
+        // The "no overlap" invariant must hold in every direction.
+        TestNode a("A"), b("B"), c("C"), d("D");
+        TestEdge e1("e1", &a, &b), e2("e2", &a, &c),
+                 e3("e3", &b, &d), e4("e4", &c, &d);
+
+        for (auto dir : {SugiyamaLayout::Direction::LeftToRight,
+                         SugiyamaLayout::Direction::RightToLeft,
+                         SugiyamaLayout::Direction::TopToBottom,
+                         SugiyamaLayout::Direction::BottomToTop}) {
+            SugiyamaLayout layout;
+            layout.setNodeSize({100, 60});
+            layout.setSpacing(60, 40);
+            layout.setDirection(dir);
+            layout.setNodes({&a, &b, &c, &d});
+            layout.setEdges({&e1, &e2, &e3, &e4});
+            auto r = layout.compute();
+            QCOMPARE(r.nodePositions.size(), 4);
+
+            // Rects must not overlap.
+            const qreal w = 100.0, h = 60.0;
+            auto ps = r.nodePositions.values();
+            for (int i = 0; i < ps.size(); ++i) {
+                QRectF ri(ps[i], QSizeF(w, h));
+                for (int j = i + 1; j < ps.size(); ++j) {
+                    QRectF rj(ps[j], QSizeF(w, h));
+                    QVERIFY2(!ri.intersects(rj),
+                             "Overlapping node rects");
+                }
+            }
+        }
+    }
 };
 
 QTEST_MAIN(TestSugiyamaLayout)

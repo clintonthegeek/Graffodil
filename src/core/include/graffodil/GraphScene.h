@@ -1,14 +1,18 @@
 #pragma once
 
+#include <graffodil/GroupStyle.h>
 #include <graffodil/Types.h>
 #include <QGraphicsScene>
 #include <QHash>
+#include <QSet>
+#include <QStringList>
 
 namespace Graffodil {
 
 class IGraphNode;
 class IGraphEdge;
 class GraphTool;
+class GroupItem;
 
 class GraphScene : public QGraphicsScene {
     Q_OBJECT
@@ -77,6 +81,45 @@ public:
     QList<IGraphNode *> selectedNodes() const;
     QList<IGraphEdge *> selectedEdges() const;
 
+    /// Id of the first registered node that is currently selected, or
+    /// an empty string if none. Iteration order follows registry insertion.
+    QString selectedNodeId() const;
+
+    /// Clear the scene's current selection and select exactly the node
+    /// with the given id. No-op if the id isn't registered.
+    void selectNode(const QString &id);
+
+    // --- Group regions ---
+    // A "group" is a decorative backdrop drawn behind a set of member
+    // nodes: a rounded, padded rect (with optional fill/border/title)
+    // that tracks the members as they move. Groups never intercept
+    // mouse events on their members — they are purely visual.
+    //
+    // Membership is addressed by node id. Removing a node cascades
+    // into any group containing it. Members may overlap multiple
+    // groups; draw order is controlled by GroupStyle::zValue.
+
+    /// Register a new group. Returns a stable uuid-shaped id used
+    /// in subsequent calls. The scene installs a listener on its own
+    /// `changed` signal the first time a group is added, so members
+    /// moved interactively or via applyLayout() keep the region
+    /// tracking automatically.
+    QString addGroup(const QSet<QString> &memberNodeIds,
+                     const GroupStyle &style);
+
+    void setGroupStyle(const QString &groupId, const GroupStyle &style);
+    void setGroupMembers(const QString &groupId,
+                         const QSet<QString> &memberNodeIds);
+    void removeGroup(const QString &groupId);
+
+    QStringList  groupIds() const;
+    QSet<QString> groupMembers(const QString &groupId) const;
+
+    /// Direct handle to the backdrop item. Exposed so consumers can
+    /// style via setStyle(), or query bounds for overlays. Ownership
+    /// remains with the scene. Returns nullptr for unknown id.
+    GroupItem *groupItem(const QString &groupId) const;
+
     // --- Layout ---
     void applyLayout(const LayoutResult &result);
 
@@ -101,11 +144,23 @@ protected:
     void wheelEvent(QGraphicsSceneWheelEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
 
+private slots:
+    void refreshGroupsFromSceneChange(const QList<QRectF> &region);
+
 private:
+    /// Recompute bounds of every group from its current members.
+    /// Called after scene mutations and whenever membership changes.
+    void refreshGroups();
+
     QHash<QString, IGraphNode *> m_nodes;
     QHash<QString, IGraphEdge *> m_edges;
     GraphTool *m_activeTool = nullptr;
     bool m_edgesAboveNodes = false;
+
+    QHash<QString, GroupItem *>    m_groups;
+    QHash<QString, QSet<QString>>  m_groupMembers;
+    bool m_groupsChangeConnected = false;
+    bool m_refreshingGroups = false;
 };
 
 } // namespace Graffodil

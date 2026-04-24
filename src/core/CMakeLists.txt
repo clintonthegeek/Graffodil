@@ -30,6 +30,7 @@ target_sources(graffodil-core PRIVATE
     src/AnchorHighlight.cpp
     src/GraphMinimap.cpp
     src/ConnectorItem.cpp
+    src/GroupItem.cpp
     include/graffodil/Types.h
     include/graffodil/IGraphNode.h
     include/graffodil/IRenderableCache.h
@@ -51,4 +52,6 @@ target_sources(graffodil-core PRIVATE
     include/graffodil/AnchorHighlight.h
     include/graffodil/GraphMinimap.h
     include/graffodil/ConnectorItem.h
+    include/graffodil/GroupStyle.h
+    include/graffodil/GroupItem.h
 )

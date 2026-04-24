@@ -373,6 +373,16 @@ void SugiyamaLayout::setSpineAlignment(bool enabled)
     m_spineAlignment = enabled;
 }
 
+void SugiyamaLayout::setDirection(Direction d)
+{
+    m_direction = d;
+}
+
+SugiyamaLayout::Direction SugiyamaLayout::direction() const
+{
+    return m_direction;
+}
+
 LayoutResult SugiyamaLayout::compute()
 {
     LayoutResult result;
@@ -433,8 +443,21 @@ LayoutResult SugiyamaLayout::compute()
     for (int i = 0; i < topoOrder.size(); ++i)
         topoIndex[topoOrder[i]] = i;
 
-    qreal nodeW = m_nodeSize.width();
-    qreal nodeH = m_nodeSize.height();
+    // Internally we compute positions in a (u, v) frame where u is the
+    // layer axis and v is the within-layer axis, stored as QPointF(u, v).
+    // The final (u, v) -> (x, y) transform is applied after all components
+    // are laid out. For LeftToRight (default), u == x and v == y, and
+    // this transform is the identity.
+    const bool swapAxes = (m_direction == Direction::TopToBottom
+                        || m_direction == Direction::BottomToTop);
+    const bool mirror   = (m_direction == Direction::RightToLeft
+                        || m_direction == Direction::BottomToTop);
+
+    const qreal layerExtent  = swapAxes ? m_nodeSize.height() : m_nodeSize.width();
+    const qreal withinExtent = swapAxes ? m_nodeSize.width()  : m_nodeSize.height();
+    const qreal layerGap     = swapAxes ? m_vSpacing          : m_hSpacing;
+    const qreal withinGap    = swapAxes ? m_hSpacing          : m_vSpacing;
+
     qreal componentYOffset = 0;
 
     // Process each component independently
@@ -693,16 +716,16 @@ LayoutResult SugiyamaLayout::compute()
 
         // ---- Phase 5: Brandes-Kopf compact coordinate assignment ----
         nodePosition = buildPositionMap(maxLayer, layerNodes);
-        qreal minSep = nodeH + m_vSpacing;
+        qreal minSep = withinExtent + withinGap;
         QHash<QString, qreal> compactY = brandesKopfYCoordinates(
             maxLayer, layerNodes, layer, nodePosition,
             compPred, compSucc, minSep);
 
         QHash<QString, QPointF> allPositions;
         for (int l = 0; l <= maxLayer; ++l) {
-            qreal x = l * (nodeW + m_hSpacing);
+            qreal u = l * (layerExtent + layerGap);
             for (const QString &uid : layerNodes[l])
-                allPositions[uid] = QPointF(x, compactY.value(uid, 0) + componentYOffset);
+                allPositions[uid] = QPointF(u, compactY.value(uid, 0) + componentYOffset);
         }
 
         // ---- Phase 5b: Spine center-alignment ----
@@ -711,7 +734,7 @@ LayoutResult SugiyamaLayout::compute()
             for (auto it = spineNodeInLayer.begin(); it != spineNodeInLayer.end(); ++it) {
                 const QString &uid = it.value();
                 if (allPositions.contains(uid))
-                    cpYValues.append(allPositions[uid].y() + nodeH / 2.0);
+                    cpYValues.append(allPositions[uid].y() + withinExtent / 2.0);
             }
 
             if (!cpYValues.isEmpty()) {
@@ -724,7 +747,7 @@ LayoutResult SugiyamaLayout::compute()
                     const QString &spUid = it.value();
                     if (!allPositions.contains(spUid))
                         continue;
-                    qreal spCenter = allPositions[spUid].y() + nodeH / 2.0;
+                    qreal spCenter = allPositions[spUid].y() + withinExtent / 2.0;
                     qreal delta = targetY - spCenter;
 
                     if (qAbs(delta) < 0.5)
@@ -738,7 +761,7 @@ LayoutResult SugiyamaLayout::compute()
             }
         }
 
-        // ---- Phase 5b-post: Normalize to non-negative Y ----
+        // ---- Phase 5b-post: Normalize to non-negative within-layer coord ----
         {
             qreal minY = std::numeric_limits<qreal>::max();
             for (auto it = allPositions.begin(); it != allPositions.end(); ++it)
@@ -755,7 +778,7 @@ LayoutResult SugiyamaLayout::compute()
         {
             qreal maxY = 0;
             for (auto it = allPositions.begin(); it != allPositions.end(); ++it)
-                maxY = qMax(maxY, it.value().y() + nodeH);
+                maxY = qMax(maxY, it.value().y() + withinExtent);
             maxHeight = maxY - componentYOffset;
         }
 
@@ -767,7 +790,7 @@ LayoutResult SugiyamaLayout::compute()
             if (dummyNodes.contains(uid)) {
                 const DummyInfo &di = dummyEdgeMap[uid];
                 auto key = qMakePair(di.sourceUid, di.targetUid);
-                QPointF wp(pos.x() + nodeW / 2.0, pos.y() + nodeH / 2.0);
+                QPointF wp(pos.x() + layerExtent / 2.0, pos.y() + withinExtent / 2.0);
 
                 QList<QPointF> &wps = result.edgeWaypoints[key];
                 while (wps.size() <= di.seqIndex)
@@ -778,8 +801,37 @@ LayoutResult SugiyamaLayout::compute()
             }
         }
 
-        // Advance vertical offset for next component
-        componentYOffset += maxHeight + 2 * m_vSpacing;
+        // Advance within-axis offset for next component
+        componentYOffset += maxHeight + 2 * withinGap;
+    }
+
+    // ---- Phase 6: (u, v) -> (x, y) transform per direction ----
+    // Internal frame uses u on X and v on Y. We mirror the layer axis
+    // for RL/BT, then swap axes for TB/BT.
+    if (mirror) {
+        qreal maxU = 0;
+        for (auto it = result.nodePositions.begin(); it != result.nodePositions.end(); ++it)
+            maxU = qMax(maxU, it.value().x());
+        // Node positions are rect top-lefts: newU_topleft = maxU - u.
+        // Waypoints are single points: newU_point = (maxU + layerExtent) - u.
+        for (auto it = result.nodePositions.begin(); it != result.nodePositions.end(); ++it)
+            it.value().setX(maxU - it.value().x());
+        for (auto it = result.edgeWaypoints.begin(); it != result.edgeWaypoints.end(); ++it) {
+            QList<QPointF> &wps = it.value();
+            for (int i = 0; i < wps.size(); ++i)
+                wps[i].setX(maxU + layerExtent - wps[i].x());
+        }
+    }
+    if (swapAxes) {
+        for (auto it = result.nodePositions.begin(); it != result.nodePositions.end(); ++it) {
+            QPointF p = it.value();
+            it.value() = QPointF(p.y(), p.x());
+        }
+        for (auto it = result.edgeWaypoints.begin(); it != result.edgeWaypoints.end(); ++it) {
+            QList<QPointF> &wps = it.value();
+            for (int i = 0; i < wps.size(); ++i)
+                wps[i] = QPointF(wps[i].y(), wps[i].x());
+        }
     }
 
     return result;

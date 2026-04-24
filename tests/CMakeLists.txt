@@ -6,6 +6,11 @@ target_link_libraries(tst_graphscene PRIVATE Graffodil::Core Qt6::Test)
 target_include_directories(tst_graphscene PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_graphscene COMMAND tst_graphscene)
 
+add_executable(tst_groups tst_groups.cpp)
+target_link_libraries(tst_groups PRIVATE Graffodil::Core Qt6::Test)
+target_include_directories(tst_groups PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME tst_groups COMMAND tst_groups)
+
 add_executable(tst_edgepathstrategies tst_edgepathstrategies.cpp)
 target_link_libraries(tst_edgepathstrategies PRIVATE Graffodil::Core Qt6::Test)
 add_test(NAME tst_edgepathstrategies COMMAND tst_edgepathstrategies)

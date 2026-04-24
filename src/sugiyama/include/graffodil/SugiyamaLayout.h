@@ -17,6 +17,17 @@ namespace Graffodil {
 /// 5. Brandes-Kopf compact coordinate assignment
 class SugiyamaLayout : public LayoutEngine {
 public:
+    /// Orientation of the layered output. Source nodes live on the
+    /// side opposite their successors; arrowheads land on the
+    /// successor side. `setSpacing(horizontal, vertical)` remains
+    /// defined in final output-space axes regardless of direction.
+    enum class Direction {
+        LeftToRight, ///< Default. Layer axis = +X, within-layer axis = Y.
+        RightToLeft, ///< Mirror of LeftToRight about the layout's X-center.
+        TopToBottom, ///< Layer axis = +Y, within-layer axis = X.
+        BottomToTop  ///< Mirror of TopToBottom about the layout's Y-center.
+    };
+
     void setNodes(const QList<IGraphNode *> &nodes) override;
     void setEdges(const QList<IGraphEdge *> &edges) override;
 
@@ -25,6 +36,11 @@ public:
 
     void setNodeSize(const QSizeF &size);
     void setSpacing(qreal horizontal, qreal vertical);
+
+    /// Orientation of the produced layout. Defaults to LeftToRight,
+    /// matching the engine's historical behavior.
+    void setDirection(Direction d);
+    Direction direction() const;
 
     /// Optional: ordered list of node IDs to center-align as a visual spine.
     void setSpine(const QStringList &orderedNodeIds);
@@ -38,6 +54,7 @@ private:
     qreal m_vSpacing = 40;
     QStringList m_spine;
     bool m_spineAlignment = false;
+    Direction m_direction = Direction::LeftToRight;
 };
 
 } // namespace Graffodil
