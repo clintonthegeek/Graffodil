@@ -2,6 +2,7 @@
 
 #include <graffodil/Types.h>
 #include <QGraphicsObject>
+#include <QPointer>
 #include <QString>
 
 namespace Graffodil {
@@ -33,6 +34,7 @@ public:
 
 private:
     IGraphNode *m_node = nullptr;
+    QPointer<QGraphicsObject> m_nodeGuard;
     QString m_activeAnchorId;
     bool m_visible = false;
     static constexpr qreal kDotRadius = 5.0;
