@@ -62,3 +62,7 @@ target_link_libraries(tst_integration PRIVATE
     Graffodil::Core Graffodil::Circular Qt6::Test)
 target_include_directories(tst_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_integration COMMAND tst_integration)
+
+add_executable(tst_minimap tst_minimap.cpp)
+target_link_libraries(tst_minimap PRIVATE Graffodil::Core Qt6::Test)
+add_test(NAME tst_minimap COMMAND tst_minimap)
