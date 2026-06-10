@@ -39,10 +39,11 @@ Mirrors Qt's own component packaging. One core library containing the scene fram
 ```
 Graffodil::Core       — interfaces, scene, tools, edge items, path strategies,
                          terminus styles, minimap, anchor highlight, connector
+Graffodil::Spatial    — QuadTree, SpatialGrid (depends: Qt6::Core only)
 Graffodil::Sugiyama   — Sugiyama layered layout engine (depends: Core)
-Graffodil::Force      — ForceAtlas2 + multilevel layout (depends: Core)
+Graffodil::Force      — ForceAtlas2 + multilevel layout (depends: Core, Spatial)
 Graffodil::Circular   — Circular/radial layout (depends: Core)
-Graffodil::Batch      — BatchRenderer, SpatialGrid, QuadTree (depends: Core)
+Graffodil::Batch      — BatchRenderer (depends: Core)
 ```
 
 Consumer CMake:
@@ -905,10 +906,11 @@ What stays where after adoption:
 | Component | Location | Consumes |
 |-----------|----------|----------|
 | `IGraphNode`, `IGraphEdge`, `GraphScene`, tools, `GraphEdgeItem`, path strategies, terminus styles, minimap, anchor highlight, connector | **Graffodil::Core** | Qt6::Widgets |
+| `QuadTree`, `SpatialGrid` | **Graffodil::Spatial** | Qt6::Core |
 | `SugiyamaLayout` (spine alignment) | **Graffodil::Sugiyama** | Graffodil::Core |
-| `ForceLayout`, `MultilevelLayout` | **Graffodil::Force** | Graffodil::Core |
+| `ForceLayout`, `MultilevelLayout` | **Graffodil::Force** | Graffodil::Core, Graffodil::Spatial |
 | `CircularLayout` | **Graffodil::Circular** | Graffodil::Core |
-| `BatchRenderer`, `SpatialGrid`, `QuadTree` | **Graffodil::Batch** | Graffodil::Core |
+| `BatchRenderer` | **Graffodil::Batch** | Graffodil::Core |
 | `DependencyGraph` (CPM engine) | **PlanStan `libs/scheduling/`** | unchanged |
 | `GraphNodeItem`, `PlanningColorScheme`, `RelationEditorWidget` | **PlanStan `libs/graph/`** | Graffodil::Core + Sugiyama |
 | `GanttArrowRouter`, `GanttArrowItem` | **PlanStan `libs/gantt/`** | arrowhead math only |
