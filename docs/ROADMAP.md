@@ -1,6 +1,6 @@
 # Graffodil Roadmap & Task Status
 
-**Updated:** 2026-06-09
+**Updated:** 2026-06-10
 **Findings source:** [`docs/evaluation-2026-06-09.md`](evaluation-2026-06-09.md) (finding IDs B1–B6, A1–A9, P1–P5 referenced below)
 
 This is the **single source of truth for work status** on Graffodil. When you
@@ -22,7 +22,7 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 | Phase | Status | Doc | Findings addressed |
 |-------|--------|-----|--------------------|
-| 1. Bugfix punch list | ☐ not started | [plan](superpowers/plans/2026-06-09-bugfix-punchlist.md) | B1 B2 B3 B4 B5 B6 |
+| 1. Bugfix punch list | ☑ complete | [plan](superpowers/plans/2026-06-09-bugfix-punchlist.md) | B1 B2 B3 B4 B5 B6 |
 | 2. Edge contract | ☐ not started | [plan](superpowers/plans/2026-06-09-edge-contract.md) | A1 A2 A8 |
 | 3. Scene scalability | ☐ not started | [plan](superpowers/plans/2026-06-09-scene-scalability.md) | A4 A5 |
 | 4. Hot-path caching | ☐ not started | [plan](superpowers/plans/2026-06-09-hot-path-caching.md) | P1 P2 P3 |
@@ -69,6 +69,7 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 ## Status log
 
+- **2026-06-10** — Phase 1 (bugfix punch list) complete. All 6 bugs fixed (B1–B6). Final commit: 01141bb.
 - **2026-06-09** — Full library evaluation performed; findings recorded in
   `docs/evaluation-2026-06-09.md`; roadmap, 5 plans, and 5 specs written.
   No remediation code changes yet.

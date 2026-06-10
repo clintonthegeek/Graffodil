@@ -1,6 +1,6 @@
 # Bugfix Punch List Implementation Plan (Phase 1)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Fix all six confirmed bugs from the 2026-06-09 evaluation (findings B1–B6 in `docs/evaluation-2026-06-09.md`): two ForceLayout math bugs, missing key-release forwarding, the documented minimap bug, a dead-code vestige, and the batch items' hardcoded bounding rects.
 
@@ -30,7 +30,7 @@ changing*.
 - Modify: `src/force/src/ForceLayout.cpp:479-489`
 - Test: `tests/tst_forcelayout.cpp`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to the test class in `tests/tst_forcelayout.cpp` (it already includes
 `TestHelpers.h` and constructs node/edge lists; follow the existing slot
@@ -78,14 +78,14 @@ void energyConvergenceIsPlateauNotDecrease()
 
 Register the slot in the test class's `private slots:` section.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cmake --build build && (cd build && ctest -R tst_forcelayout --output-on-failure)`
 Expected: FAIL on `ticks > 15` (pre-fix it converges after ~10-11 ticks).
 If it unexpectedly passes, check whether the displacement fallback converged
 first — bump the chain to 40 nodes before concluding the test is wrong.
 
-- [ ] **Step 3: Apply the fix**
+- [x] **Step 3: Apply the fix**
 
 In `src/force/include/graffodil/ForceLayout.h`, line 61, rename the counter:
 
@@ -119,12 +119,12 @@ In `src/force/src/ForceLayout.cpp`, replace the energy-based convergence block
 (`<cmath>` is already in use in this file via `std::sqrt`; add
 `#include <cmath>` at the top if it isn't explicitly there.)
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cmake --build build && (cd build && ctest -R tst_forcelayout --output-on-failure)`
 Expected: PASS, including all pre-existing force tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/force tests/tst_forcelayout.cpp
@@ -149,7 +149,7 @@ plus the full existing suite.
 - Modify: `src/force/src/ForceLayout.cpp:432-437`
 - Test: `tests/tst_forcelayout.cpp`
 
-- [ ] **Step 1: Write the regression-guard test** (passes before AND after — it pins the invariant)
+- [x] **Step 1: Write the regression-guard test** (passes before AND after — it pins the invariant)
 
 ```cpp
 void positionsStayFiniteAndBounded()
@@ -191,9 +191,9 @@ void positionsStayFiniteAndBounded()
 }
 ```
 
-- [ ] **Step 2: Run it** — Expected: PASS (it guards against future regressions).
+- [x] **Step 2: Run it** — Expected: PASS (it guards against future regressions).
 
-- [ ] **Step 3: Apply the fix**
+- [x] **Step 3: Apply the fix**
 
 Replace lines 432-437 of `src/force/src/ForceLayout.cpp`:
 
@@ -210,13 +210,13 @@ Replace lines 432-437 of `src/force/src/ForceLayout.cpp`:
     m_globalSpeed = std::max(m_globalSpeed, EPSILON);
 ```
 
-- [ ] **Step 4: Run the full force + integration suites**
+- [x] **Step 4: Run the full force + integration suites**
 
 Run: `cmake --build build && (cd build && ctest -R 'forcelayout|integration' --output-on-failure)`
 Expected: PASS. (If `energyConvergenceIsPlateauNotDecrease` from Task 1 now
 needs more ticks, that is expected and fine — it asserts a lower bound only.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/force tests/tst_forcelayout.cpp
@@ -232,7 +232,7 @@ git commit -m "fix(force): cap adaptive speed against previous tick's speed"
 - Modify: `src/core/src/GraphScene.cpp` (after `keyPressEvent`, ~line 459)
 - Test: `tests/tst_graphscene.cpp`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `tests/tst_graphscene.cpp`, add a minimal recording tool near the top of
 the file (file scope, after includes):
@@ -266,12 +266,12 @@ void keyReleaseReachesActiveTool()
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cmake --build build && (cd build && ctest -R tst_graphscene --output-on-failure)`
 Expected: FAIL — `releasedCount` is 0 (QGraphicsScene swallows the release).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/core/include/graffodil/GraphScene.h`, in the `protected:` block directly
 after `void keyPressEvent(QKeyEvent *e) override;`:
@@ -292,9 +292,9 @@ void GraphScene::keyReleaseEvent(QKeyEvent *e)
 }
 ```
 
-- [ ] **Step 4: Run tests** — Expected: PASS (`tst_graphscene` and `tst_tools`).
+- [x] **Step 4: Run tests** — Expected: PASS (`tst_graphscene` and `tst_tools`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core tests/tst_graphscene.cpp
@@ -317,7 +317,7 @@ again.
 - Create: `tests/tst_minimap.cpp`
 - Modify: `tests/CMakeLists.txt`
 
-- [ ] **Step 1: Create the failing test file**
+- [x] **Step 1: Create the failing test file**
 
 `tests/tst_minimap.cpp`:
 
@@ -383,12 +383,12 @@ target_link_libraries(tst_minimap PRIVATE Graffodil::Core Qt6::Test)
 add_test(NAME tst_minimap COMMAND tst_minimap)
 ```
 
-- [ ] **Step 2: Reconfigure and verify it fails to build**
+- [x] **Step 2: Reconfigure and verify it fails to build**
 
 Run: `cmake -S . -B build && cmake --build build`
 Expected: compile error — `effectiveSceneRect` doesn't exist yet.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/core/include/graffodil/GraphMinimap.h` — in the `public:` section after
 `void setEnabled(bool visible);`:
@@ -440,12 +440,12 @@ In `mapToScene`, replace lines 116-119:
 (The duplicated `-50/-50/50/50` adjusts at both former sites are now inside
 the helper — make sure neither call site still applies its own halo.)
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cmake --build build && (cd build && ctest -R tst_minimap --output-on-failure)`
 Expected: PASS, all three slots.
 
-- [ ] **Step 5: Update the bug doc and commit**
+- [x] **Step 5: Update the bug doc and commit**
 
 Append to `docs/bugs/minimap-uses-itemsBoundingRect-not-sceneRect.md`:
 
@@ -471,7 +471,7 @@ git commit -m "fix(core): minimap respects authored sceneRect, viewport never es
 **Files:**
 - Modify: `src/core/src/GraphScene.cpp:100-104`
 
-- [ ] **Step 1: Delete the dead code**
+- [x] **Step 1: Delete the dead code**
 
 In `GraphScene::setEdgesAboveNodes`, delete these lines:
 
@@ -489,12 +489,12 @@ and replace with the single accurate comment:
     // Re-assign z on items still at either default value.
 ```
 
-- [ ] **Step 2: Build and run the full suite**
+- [x] **Step 2: Build and run the full suite**
 
 Run: `cmake --build build && (cd build && ctest --output-on-failure)`
 Expected: PASS — behavior is unchanged (the deleted values were never read).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/core/src/GraphScene.cpp
@@ -516,7 +516,7 @@ tight one.
 - Modify: `src/batch/src/BatchEdgeItem.h`, `src/batch/src/BatchEdgeItem.cpp`
 - Test: `tests/tst_batchrenderer.cpp`, `tests/CMakeLists.txt`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 These items live in private headers, so give the test target access. In
 `tests/CMakeLists.txt`, extend the tst_batchrenderer entry:
@@ -565,12 +565,12 @@ void tightEdgeBounds()
 
 Register both slots in the test class.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cmake -S . -B build && cmake --build build && (cd build && ctest -R tst_batchrenderer --output-on-failure)`
 Expected: FAIL — `contains(15000,300)` false and width 20000 / height 20000.
 
-- [ ] **Step 3: Implement BatchNodeItem**
+- [x] **Step 3: Implement BatchNodeItem**
 
 `src/batch/src/BatchNodeItem.h`: add to the private section
 `QRectF m_bounds;` and declare `void recomputeBounds();`.
@@ -617,7 +617,7 @@ QRectF BatchNodeItem::boundingRect() const
 }
 ```
 
-- [ ] **Step 4: Implement BatchEdgeItem**
+- [x] **Step 4: Implement BatchEdgeItem**
 
 `src/batch/src/BatchEdgeItem.h`: add `QRectF m_bounds;` and
 `void recomputeBounds();` to the private section.
@@ -641,12 +641,12 @@ In `updateLines`: add `prepareGeometryChange();` as the first line and
 `recomputeBounds();` before `update();`.
 Replace `boundingRect()` to `return m_bounds;`.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cmake --build build && (cd build && ctest -R tst_batchrenderer --output-on-failure)`
 Expected: PASS (new slots and all pre-existing batch tests).
 
-- [ ] **Step 6: Full suite + commit**
+- [x] **Step 6: Full suite + commit**
 
 Run: `(cd build && ctest --output-on-failure)` — Expected: all PASS.
 
@@ -659,6 +659,6 @@ git commit -m "fix(batch): tight bounding rects for batch node/edge items"
 
 ### Task 7: Close out the phase
 
-- [ ] Update `docs/ROADMAP.md`: set Phase 1 row to ☑ with the final commit hash; add a Status-log line.
-- [ ] Run the demo (`./build/demo/graffodil-demo` or the binary under `build/demo/`) and sanity-check: force layout settles smoothly, minimap viewport stays inside chrome while panning, batch mode still renders.
-- [ ] `git add docs/ROADMAP.md && git commit -m "docs: mark Phase 1 (bugfix punch list) complete"`
+- [x] Update `docs/ROADMAP.md`: set Phase 1 row to ☑ with the final commit hash; add a Status-log line.
+- [x] Run the demo (`./build/demo/graffodil-demo` or the binary under `build/demo/`) and sanity-check: force layout settles smoothly, minimap viewport stays inside chrome while panning, batch mode still renders.
+- [x] `git add docs/ROADMAP.md && git commit -m "docs: mark Phase 1 (bugfix punch list) complete"`
