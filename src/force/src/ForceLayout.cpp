@@ -299,7 +299,7 @@ void ForceLayout::initialize()
     m_prevEnergy = 0.0;
     m_iteration = 0;
     m_stableCount = 0;
-    m_energyDecreaseCount = 0;
+    m_energyStableCount = 0;
     m_converged = false;
     m_initialized = true;
 }
@@ -478,18 +478,26 @@ bool ForceLayout::tick()
 
     // 8. Convergence detection
 
-    // Energy-based convergence
-    if (m_prevEnergy > EPSILON && m_energy < m_prevEnergy * 0.999) {
-        ++m_energyDecreaseCount;
-        if (m_energyDecreaseCount >= 10) {
-            m_converged = true;
+    // Energy-plateau convergence: converged when energy stops changing
+    // run-over-run. (A correctly cooling simulation *decreases* energy every
+    // tick — decreasing energy means still improving, not converged.)
+    if (m_prevEnergy > EPSILON) {
+        const double relChange =
+            std::abs(m_energy - m_prevEnergy) / m_prevEnergy;
+        if (relChange < 0.001) {
+            ++m_energyStableCount;
+            if (m_energyStableCount >= 10)
+                m_converged = true;
+        } else {
+            m_energyStableCount = 0;
         }
-    } else {
-        m_energyDecreaseCount = 0;
     }
 
     // Displacement-based fallback
-    double convergenceThreshold = canvasArea * 0.0001;
+    // Use a threshold relative to link distance so it is independent of
+    // canvas scale (the cap on node movement is 100 px — a canvas-relative
+    // threshold would fire on the very first tick for large graphs).
+    double convergenceThreshold = m_linkDistance * 0.1;
     if (maxDisplacement < convergenceThreshold) {
         ++m_stableCount;
         if (m_stableCount >= STABLE_ITERATIONS_REQUIRED) {

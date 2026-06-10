@@ -58,7 +58,7 @@ private:
     double m_prevEnergy = 0.0;
     int m_iteration = 0;
     int m_stableCount = 0;
-    int m_energyDecreaseCount = 0;
+    int m_energyStableCount = 0;
     bool m_converged = false;
     bool m_initialized = false;
 

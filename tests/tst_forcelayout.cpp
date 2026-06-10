@@ -97,6 +97,44 @@ private slots:
         ForceLayout layout;
         QVERIFY(layout.isIterative());
     }
+
+    void energyConvergenceIsPlateauNotDecrease()
+    {
+        using namespace Graffodil;
+        // A 20-node chain takes well over 15 ticks to physically settle from
+        // BFS initial placement. The pre-fix heuristic stops after ~10 ticks of
+        // monotonically decreasing energy — long before the layout has settled.
+        QList<Test::TestNode *> nodeStore;
+        QList<IGraphNode *> nodes;
+        QList<IGraphEdge *> edges;
+        QList<Test::TestEdge *> edgeStore;
+        for (int i = 0; i < 20; ++i) {
+            auto *n = new Test::TestNode(QString("n%1").arg(i));
+            nodeStore.append(n);
+            nodes.append(n);
+        }
+        for (int i = 0; i + 1 < 20; ++i) {
+            auto *e = new Test::TestEdge(QString("e%1").arg(i),
+                                         nodes[i], nodes[i + 1]);
+            edgeStore.append(e);
+            edges.append(e);
+        }
+
+        ForceLayout layout;
+        layout.setNodes(nodes);
+        layout.setEdges(edges);
+
+        int ticks = 0;
+        while (layout.tick() && ticks < 5000)
+            ++ticks;
+
+        QVERIFY(layout.isConverged());
+        QVERIFY2(ticks > 15,
+                 "simulation stopped while energy was still actively decreasing");
+
+        qDeleteAll(edgeStore);
+        qDeleteAll(nodeStore);
+    }
 };
 
 QTEST_MAIN(TestForceLayout)
