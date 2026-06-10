@@ -40,11 +40,11 @@ target_include_directories(tst_sugiyama PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_sugiyama COMMAND tst_sugiyama)
 
 add_executable(tst_spatialgrid tst_spatialgrid.cpp)
-target_link_libraries(tst_spatialgrid PRIVATE Graffodil::Batch Qt6::Test)
+target_link_libraries(tst_spatialgrid PRIVATE Graffodil::Spatial Qt6::Test)
 add_test(NAME tst_spatialgrid COMMAND tst_spatialgrid)
 
 add_executable(tst_quadtree tst_quadtree.cpp)
-target_link_libraries(tst_quadtree PRIVATE Graffodil::Batch Qt6::Test)
+target_link_libraries(tst_quadtree PRIVATE Graffodil::Spatial Qt6::Test)
 add_test(NAME tst_quadtree COMMAND tst_quadtree)
 
 add_executable(tst_forcelayout tst_forcelayout.cpp)

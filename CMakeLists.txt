@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Widgets Test)
 
 add_subdirectory(src/core)
+add_subdirectory(src/spatial)
 add_subdirectory(src/sugiyama)
 add_subdirectory(src/force)
 add_subdirectory(src/circular)
