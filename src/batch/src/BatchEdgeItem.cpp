@@ -18,20 +18,31 @@ void BatchEdgeItem::setEdges(const QVector<EdgeData> &edges)
         std::partition(m_edges.begin(), m_edges.end(),
                        [](const EdgeData &e) { return !e.dimmed; })
         - m_edges.begin());
+    recomputeBounds();
     update();
 }
 
 void BatchEdgeItem::updateLines(const QVector<QLineF> &lines)
 {
+    prepareGeometryChange();
     int count = qMin(lines.size(), m_edges.size());
     for (int i = 0; i < count; ++i)
         m_edges[i].line = lines[i];
+    recomputeBounds();
     update();
 }
 
 QRectF BatchEdgeItem::boundingRect() const
 {
-    return QRectF(-10000, -10000, 20000, 20000);
+    return m_bounds;
+}
+
+void BatchEdgeItem::recomputeBounds()
+{
+    QRectF b;
+    for (const auto &e : m_edges)
+        b |= QRectF(e.line.p1(), e.line.p2()).normalized();
+    m_bounds = b.isNull() ? b : b.adjusted(-1.0, -1.0, 1.0, 1.0);
 }
 
 void BatchEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *)

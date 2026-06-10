@@ -13,20 +13,38 @@ void BatchNodeItem::setNodes(const QVector<NodeData> &nodes)
 {
     prepareGeometryChange();
     m_nodes = nodes;
+    recomputeBounds();
     update();
 }
 
 void BatchNodeItem::updatePositions(const QVector<QPointF> &positions)
 {
+    prepareGeometryChange();
     int count = qMin(positions.size(), m_nodes.size());
     for (int i = 0; i < count; ++i)
         m_nodes[i].position = positions[i];
+    recomputeBounds();
     update();
 }
 
 QRectF BatchNodeItem::boundingRect() const
 {
-    return QRectF(-10000, -10000, 20000, 20000);
+    return m_bounds;
+}
+
+void BatchNodeItem::recomputeBounds()
+{
+    QRectF b;
+    for (const auto &node : m_nodes) {
+        qreal rx = node.radius, ry = node.radius;
+        if (!node.cachedPixmap.isNull() && node.cachedSize.isValid()) {
+            rx = qMax(rx, node.cachedSize.width() / 2.0);
+            ry = qMax(ry, node.cachedSize.height() / 2.0);
+        }
+        b |= QRectF(node.position.x() - rx, node.position.y() - ry,
+                    rx * 2.0, ry * 2.0);
+    }
+    m_bounds = b;
 }
 
 void BatchNodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *)

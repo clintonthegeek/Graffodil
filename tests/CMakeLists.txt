@@ -54,7 +54,8 @@ add_test(NAME tst_forcelayout COMMAND tst_forcelayout)
 
 add_executable(tst_batchrenderer tst_batchrenderer.cpp)
 target_link_libraries(tst_batchrenderer PRIVATE Graffodil::Batch Qt6::Test)
-target_include_directories(tst_batchrenderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(tst_batchrenderer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/src/batch/src)
 add_test(NAME tst_batchrenderer COMMAND tst_batchrenderer)
 
 add_executable(tst_integration tst_integration.cpp)

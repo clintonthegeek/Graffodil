@@ -29,6 +29,8 @@ public:
 
 private:
     QVector<NodeData> m_nodes;
+    QRectF m_bounds;
+    void recomputeBounds();
 };
 
 } // namespace Graffodil
