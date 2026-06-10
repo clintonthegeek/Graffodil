@@ -18,7 +18,7 @@
 - Modify: `src/core/src/GraphEdgeItem.cpp` (`adjust`, `shape`, `setHitWidth`, `paint`)
 - Test: `tests/tst_graphedgeitem.cpp`
 
-- [ ] **Step 1: Write the cache-invalidation tests**
+- [x] **Step 1: Write the cache-invalidation tests**
 
 The risk in this task is a stale cache, so the tests pin invalidation, not
 speed. Add to `tests/tst_graphedgeitem.cpp` (it already builds nodes/edges —
@@ -63,11 +63,11 @@ void shapeFollowsHitWidth()
 }
 ```
 
-- [ ] **Step 2: Run them** — Expected: PASS pre-change (they pin behavior the
+- [x] **Step 2: Run them** — Expected: PASS pre-change (they pin behavior the
 cache must preserve). Run:
 `cmake --build build && (cd build && ctest -R tst_graphedgeitem --output-on-failure)`
 
-- [ ] **Step 3: Add the cache members**
+- [x] **Step 3: Add the cache members**
 
 `src/core/include/graffodil/GraphEdgeItem.h`, private section after
 `m_gradient`:
@@ -81,7 +81,7 @@ cache must preserve). Run:
     mutable bool m_shapeDirty = true;
 ```
 
-- [ ] **Step 4: Populate in adjust(), invalidate in setHitWidth()**
+- [x] **Step 4: Populate in adjust(), invalidate in setHitWidth()**
 
 `src/core/src/GraphEdgeItem.cpp` — `adjust()` becomes:
 
@@ -150,7 +150,7 @@ void GraphEdgeItem::setHitWidth(qreal width)
 }
 ```
 
-- [ ] **Step 5: Use the caches in paint()**
+- [x] **Step 5: Use the caches in paint()**
 
 In `paint()`, replace the four per-frame path queries (lines ~191-194 and the
 two terminus blocks):
@@ -174,14 +174,14 @@ and the terminus blocks:
 (The `len` local disappears; the gradient block keeps using
 `srcPos`/`tgtPos`.)
 
-- [ ] **Step 6: Full suite**
+- [x] **Step 6: Full suite**
 
 Run: `cmake --build build && (cd build && ctest --output-on-failure)`
 Expected: all PASS — `tst_graphedgeitem`, `tst_terminus` (arrowheads still
 oriented correctly), `tst_tools` (hit-testing via shape still works), plus the
 two new slots.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/core tests/tst_graphedgeitem.cpp
@@ -200,7 +200,7 @@ at six sites, several inside per-node loops that run every tick.
 - Modify: `src/force/src/ForceLayout.cpp` (`buildInternalStructures`, `tick`)
 - Test: `tests/tst_forcelayout.cpp`
 
-- [ ] **Step 1: Write the determinism guard**
+- [x] **Step 1: Write the determinism guard**
 
 The refactor must not change a single computed force. Pin it:
 
@@ -249,14 +249,14 @@ void tickIsDeterministicAcrossInstances()
 }
 ```
 
-- [ ] **Step 2: Run it twice** — once now (must PASS — establishes the
+- [x] **Step 2: Run it twice** — once now (must PASS — establishes the
 baseline is deterministic), and re-run after Step 4 (must still PASS —
 the refactor changed nothing). Run:
 `cmake --build build && (cd build && ctest -R tst_forcelayout --output-on-failure)`
 If it FAILS *now*, the engine has hidden nondeterminism — stop and
 investigate before proceeding (do not write the cache on a flaky baseline).
 
-- [ ] **Step 3: Build the vector**
+- [x] **Step 3: Build the vector**
 
 `src/force/include/graffodil/ForceLayout.h` — next to `m_degree` (~line 51):
 
@@ -273,7 +273,7 @@ investigate before proceeding (do not write the cache on a flaky baseline).
         m_nodeMass[i] = m_degree.value(m_ids[i], 0) + 1.0;
 ```
 
-- [ ] **Step 4: Replace the six tick() lookups**
+- [x] **Step 4: Replace the six tick() lookups**
 
 In `tick()`, replace every `m_degree.value(m_ids[i], 0) + 1.0` (and the `j`
 variant) with the vector read. Sites (pre-change line numbers):
@@ -289,14 +289,14 @@ variant) with the vector read. Sites (pre-change line numbers):
 Leave `m_degree` itself and its uses *outside* `tick()` (BFS placement,
 `estimateCanvasArea`, etc.) untouched — this task only de-hashes the hot loop.
 
-- [ ] **Step 5: Verify determinism + full suite**
+- [x] **Step 5: Verify determinism + full suite**
 
 Run: `cmake --build build && (cd build && ctest --output-on-failure)`
 Expected: all PASS, including `tickIsDeterministicAcrossInstances` — and
 crucially, the Phase-1 convergence/boundedness tests still pass (the same
 numbers are being computed, just fetched cheaper).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/force tests/tst_forcelayout.cpp
@@ -307,7 +307,7 @@ git commit -m "perf(force): index-based node mass vector replaces per-tick QStri
 
 ### Task 3: Close out the phase
 
-- [ ] Optional spot-check, demo: load the largest demo graph, drag nodes and
+- [x] Optional spot-check, demo: load the largest demo graph, drag nodes and
       hover edges — interaction should feel at least as smooth as before.
-- [ ] Update `docs/ROADMAP.md`: Phase 4 → ☑ with commit hash; Status-log line.
-- [ ] `git add docs/ROADMAP.md && git commit -m "docs: mark Phase 4 (hot-path caching) complete"`
+- [x] Update `docs/ROADMAP.md`: Phase 4 → ☑ with commit hash; Status-log line.
+- [x] `git add docs/ROADMAP.md && git commit -m "docs: mark Phase 4 (hot-path caching) complete"`
