@@ -102,6 +102,13 @@ private:
     qreal m_hitWidth = 8.0;
     bool m_highlighted = false;
     std::optional<std::pair<QColor, QColor>> m_gradient;
+
+    // Caches computed in adjust() — invalidated whenever the path changes.
+    qreal m_pathLength = 1.0;
+    QPointF m_srcPoint, m_tgtPoint;
+    QPointF m_srcTangentRef, m_tgtTangentRef;
+    mutable QPainterPath m_shapeCache;
+    mutable bool m_shapeDirty = true;
 };
 
 } // namespace Graffodil

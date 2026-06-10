@@ -78,6 +78,42 @@ private slots:
         QCOMPARE(scene.edges().size(), 1);
         QCOMPARE(scene.edgeBetween("src", "tgt"), static_cast<IGraphEdge *>(edge));
     }
+
+    void shapeFollowsAdjust()
+    {
+        using namespace Graffodil;
+        auto *src = new Test::TestNode("s", {0, 0});
+        auto *tgt = new Test::TestNode("t", {300, 0});
+        auto *edge = new GraphEdgeItem(src, QString(), tgt, QString(),
+                                       std::make_unique<DirectPathStrategy>());
+        edge->adjust();
+        const QRectF before = edge->shape().boundingRect();
+
+        tgt->setPos(300, 400);     // move the target far down
+        edge->adjust();
+        const QRectF after = edge->shape().boundingRect();
+
+        QVERIFY(after != before);
+        QVERIFY(after.bottom() > before.bottom() + 100.0);
+
+        delete edge; delete src; delete tgt;
+    }
+
+    void shapeFollowsHitWidth()
+    {
+        using namespace Graffodil;
+        auto *src = new Test::TestNode("s", {0, 0});
+        auto *tgt = new Test::TestNode("t", {300, 0});
+        auto *edge = new GraphEdgeItem(src, QString(), tgt, QString(),
+                                       std::make_unique<DirectPathStrategy>());
+        edge->adjust();
+        const qreal narrow = edge->shape().boundingRect().height();
+        edge->setHitWidth(40.0);
+        const qreal wide = edge->shape().boundingRect().height();
+        QVERIFY(wide > narrow + 10.0);
+
+        delete edge; delete src; delete tgt;
+    }
 };
 
 QTEST_MAIN(TestGraphEdgeItem)
