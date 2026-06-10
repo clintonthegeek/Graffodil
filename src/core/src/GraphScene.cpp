@@ -97,11 +97,7 @@ void GraphScene::setEdgesAboveNodes(bool above)
     if (m_edgesAboveNodes == above)
         return;
     m_edgesAboveNodes = above;
-    // Re-assign z on items still at the prior defaults.
-    const qreal prevNodeZ = above ? DefaultNodeZ : DefaultEdgeZ;  // new meaning
-    const qreal prevEdgeZ = above ? DefaultEdgeZ : DefaultNodeZ;
-    Q_UNUSED(prevNodeZ);
-    Q_UNUSED(prevEdgeZ);
+    // Re-assign z on items still at either default value.
     for (auto *node : m_nodes) {
         QGraphicsItem *gi = node->graphicsItem();
         qreal z = gi->zValue();
