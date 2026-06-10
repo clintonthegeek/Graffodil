@@ -118,6 +118,23 @@ public:
 
     // Bridge to QGraphicsItem, same pattern as IGraphNode.
     virtual QGraphicsItem *graphicsItem() = 0;
+
+    // Notification that either endpoint node may have moved or changed
+    // geometry. The scene calls this from adjustEdgesForNode(),
+    // adjustAllEdges(), and applyLayout(). Implementations should recompute
+    // their visual path. Default is a no-op so data-only edges stay valid.
+    virtual void endpointsChanged() {}
+
+    // Routing hints delivered by GraphScene::applyLayout() when a layout
+    // engine produced LayoutResult::edgeWaypoints for this edge's
+    // (sourceId, targetId) pair. Scene coordinates, ordered source→target.
+    // Default ignores them; GraphEdgeItem feeds them to its path strategy.
+    // Known limitation: parallel edges between the same pair share the first
+    // matching waypoint list.
+    virtual void setWaypoints(const QList<QPointF> &waypoints)
+    {
+        Q_UNUSED(waypoints);
+    }
 };
 
 }
@@ -204,11 +221,10 @@ public:
 
     // --- Layout ---
 
-    // Applies computed positions to registered nodes.
-    // For edges: if edgeWaypoints are provided and the edge is a
-    // GraphEdgeItem, waypoints are passed to the path strategy.
-    // Groups refresh their bounds synchronously after the layout
-    // is applied.
+    // Applies computed positions to registered nodes. Delivers routing
+    // hints to edges before calling endpointsChanged() so recomputed paths
+    // see the waypoints. Groups refresh their bounds synchronously after
+    // the layout is applied.
     void applyLayout(const LayoutResult &result);
 
 signals:
@@ -350,16 +366,24 @@ class GraphEdgeItem : public QGraphicsPathItem, public IGraphEdge {
 public:
     GraphEdgeItem(IGraphNode *source, Side sourceSide,
                   IGraphNode *target, Side targetSide,
-                  EdgePathStrategy *strategy);
+                  std::unique_ptr<EdgePathStrategy> strategy);
+    // Raw-pointer constructor is deprecated; ownership transfers either way.
+    [[deprecated]] GraphEdgeItem(IGraphNode *source, Side sourceSide,
+                                 IGraphNode *target, Side targetSide,
+                                 EdgePathStrategy *strategy);
 
     // --- IGraphEdge ---
     QString edgeId() const override;
     IGraphNode *sourceNode() const override;
     IGraphNode *targetNode() const override;
     QGraphicsItem *graphicsItem() override;
+    void endpointsChanged() override { adjust(); }
+    void setWaypoints(const QList<QPointF> &waypoints) override;
 
     // --- Configuration ---
-    void setPathStrategy(EdgePathStrategy *strategy);
+    // Takes ownership via unique_ptr (preferred) or raw pointer (deprecated).
+    void setPathStrategy(std::unique_ptr<EdgePathStrategy> strategy);
+    [[deprecated]] void setPathStrategy(EdgePathStrategy *strategy);
     void setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style);
     void setPen(const QPen &pen);      // line style, dash pattern, width, color
     void setHighlighted(bool);

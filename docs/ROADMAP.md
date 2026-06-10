@@ -23,7 +23,7 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 | Phase | Status | Doc | Findings addressed |
 |-------|--------|-----|--------------------|
 | 1. Bugfix punch list | ☑ complete | [plan](superpowers/plans/2026-06-09-bugfix-punchlist.md) | B1 B2 B3 B4 B5 B6 |
-| 2. Edge contract | ☐ not started | [plan](superpowers/plans/2026-06-09-edge-contract.md) | A1 A2 A8 |
+| 2. Edge contract | ☑ complete | [plan](superpowers/plans/2026-06-09-edge-contract.md) | A1 A2 A8 |
 | 3. Scene scalability | ☐ not started | [plan](superpowers/plans/2026-06-09-scene-scalability.md) | A4 A5 |
 | 4. Hot-path caching | ☐ not started | [plan](superpowers/plans/2026-06-09-hot-path-caching.md) | P1 P2 P3 |
 | 5. Spatial module | ☐ not started | [plan](superpowers/plans/2026-06-09-spatial-module.md) | A3 |
@@ -69,6 +69,7 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 ## Status log
 
+- **2026-06-10** — Phase 2 (edge contract) complete. IGraphEdge::endpointsChanged, setWaypoints; applyLayout delivers waypoints; GraphEdgeItem strategy ownership moved to unique_ptr. Final commit: eca40f3.
 - **2026-06-10** — Phase 1 (bugfix punch list) complete. All 6 bugs fixed (B1–B6). Final commit: 01141bb.
 - **2026-06-09** — Full library evaluation performed; findings recorded in
   `docs/evaluation-2026-06-09.md`; roadmap, 5 plans, and 5 specs written.
