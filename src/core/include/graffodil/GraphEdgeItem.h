@@ -41,7 +41,7 @@ public:
     void setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style);
     void setPen(const QPen &pen);
     void setHighlighted(bool highlighted);
-    void setWaypoints(const QList<QPointF> &waypoints);
+    void setWaypoints(const QList<QPointF> &waypoints) override;
 
     /// Recompute path from current node anchor positions.
     void adjust();

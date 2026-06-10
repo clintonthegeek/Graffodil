@@ -298,6 +298,30 @@ private slots:
         scene.adjustEdgesForNode("unrelated-id");
         QCOMPARE(edge->adjustCount, 2);
     }
+
+    void applyLayoutDeliversWaypoints()
+    {
+        using namespace Graffodil;
+        GraphScene scene;
+        auto *a = new Test::TestNode("a", {0, 0});
+        auto *b = new Test::TestNode("b", {400, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *edge = new GraphEdgeItem(a, QString(), b, QString(),
+                                       new PolylinePathStrategy());
+        scene.addEdge(edge);
+
+        LayoutResult result;
+        result.nodePositions["a"] = QPointF(0, 0);
+        result.nodePositions["b"] = QPointF(400, 0);
+        result.edgeWaypoints[{QStringLiteral("a"), QStringLiteral("b")}] =
+            {QPointF(200, 150)};
+        scene.applyLayout(result);
+
+        // The polyline must detour through the waypoint at y=150;
+        // without delivery it is a straight line with y extent ~0.
+        QVERIFY(edge->path().boundingRect().bottom() >= 149.0);
+    }
 };
 
 QTEST_MAIN(TestInterfaces)

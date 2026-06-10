@@ -375,6 +375,12 @@ void GraphScene::applyLayout(const LayoutResult &result)
         if (auto *node = nodeForId(it.key()))
             node->graphicsItem()->setPos(it.value());
     }
+    // Deliver routing hints before adjusting so the recomputed paths see them.
+    for (auto it = result.edgeWaypoints.constBegin();
+         it != result.edgeWaypoints.constEnd(); ++it) {
+        if (auto *edge = edgeBetween(it.key().first, it.key().second))
+            edge->setWaypoints(it.value());
+    }
     adjustAllEdges();
     // Groups derive from member positions; refresh synchronously so
     // callers that query bounds right after applyLayout() see fresh data
