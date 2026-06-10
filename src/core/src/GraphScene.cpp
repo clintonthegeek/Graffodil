@@ -3,7 +3,6 @@
 #include <graffodil/GroupItem.h>
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IGraphEdge.h>
-#include <graffodil/GraphEdgeItem.h>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneWheelEvent>
 #include <QKeyEvent>
@@ -388,18 +387,15 @@ void GraphScene::adjustEdgesForNode(const QString &nodeId)
     for (auto *edge : m_edges) {
         if (edge->sourceNode()->nodeId() == nodeId
             || edge->targetNode()->nodeId() == nodeId) {
-            if (auto *item = dynamic_cast<GraphEdgeItem *>(edge))
-                item->adjust();
+            edge->endpointsChanged();
         }
     }
 }
 
 void GraphScene::adjustAllEdges()
 {
-    for (auto *edge : m_edges) {
-        if (auto *item = dynamic_cast<GraphEdgeItem *>(edge))
-            item->adjust();
-    }
+    for (auto *edge : m_edges)
+        edge->endpointsChanged();
 }
 
 // Tool dispatch — forward events to active tool if set, but also let the

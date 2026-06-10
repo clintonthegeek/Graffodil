@@ -27,6 +27,12 @@ public:
         return n ? n->nodeId() : QString();
     }
 
+    /// Notification that either endpoint node may have moved or changed
+    /// geometry. The scene calls this from adjustEdgesForNode(),
+    /// adjustAllEdges(), and applyLayout(). Implementations should recompute
+    /// their visual path. Default is a no-op so data-only edges stay valid.
+    virtual void endpointsChanged() {}
+
     /// Bridge to QGraphicsItem, same pattern as IGraphNode.
     virtual QGraphicsItem *graphicsItem() = 0;
 };

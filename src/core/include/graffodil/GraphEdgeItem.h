@@ -34,6 +34,7 @@ public:
     IGraphNode *sourceNode() const override;
     IGraphNode *targetNode() const override;
     QGraphicsItem *graphicsItem() override;
+    void endpointsChanged() override { adjust(); }
 
     // --- Configuration ---
     void setPathStrategy(EdgePathStrategy *strategy);

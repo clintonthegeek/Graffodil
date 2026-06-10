@@ -52,6 +52,13 @@ public:
     QGraphicsItem *graphicsItem() override { return this; }
 };
 
+class AdjustRecordingEdge : public Graffodil::Test::TestEdge {
+public:
+    using TestEdge::TestEdge;
+    void endpointsChanged() override { ++adjustCount; }
+    int adjustCount = 0;
+};
+
 using namespace Graffodil;
 using namespace Graffodil::Test;
 
@@ -270,6 +277,26 @@ private slots:
 
         QCOMPARE(tool.releasedCount, 1);
         scene.setActiveTool(nullptr);  // detach before tool goes out of scope
+    }
+
+    void customEdgeReceivesEndpointsChanged()
+    {
+        Graffodil::GraphScene scene;
+        auto *a = new Graffodil::Test::TestNode("a", {0, 0});
+        auto *b = new Graffodil::Test::TestNode("b", {200, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *edge = new AdjustRecordingEdge("e1", a, b);
+        scene.addEdge(edge);
+
+        scene.adjustAllEdges();
+        QCOMPARE(edge->adjustCount, 1);
+
+        scene.adjustEdgesForNode("a");
+        QCOMPARE(edge->adjustCount, 2);
+
+        scene.adjustEdgesForNode("unrelated-id");
+        QCOMPARE(edge->adjustCount, 2);
     }
 };
 
