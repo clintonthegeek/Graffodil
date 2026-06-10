@@ -49,6 +49,7 @@ private:
     QVector<EdgeData> m_edges;
     QVector<bool> m_pinned;
     QHash<QString, int> m_degree;
+    QVector<double> m_nodeMass;  // degree + 1, by node index — tick() hot path
 
     // Simulation state
     QVector<QPointF> m_displacements;

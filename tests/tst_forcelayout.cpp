@@ -136,6 +136,49 @@ private slots:
         qDeleteAll(nodeStore);
     }
 
+    void tickIsDeterministicAcrossInstances()
+    {
+        using namespace Graffodil;
+        auto build = [](QList<Test::TestNode *> &nodeStore,
+                        QList<Test::TestEdge *> &edgeStore,
+                        QList<IGraphNode *> &nodes, QList<IGraphEdge *> &edges) {
+            for (int i = 0; i < 12; ++i) {
+                auto *n = new Test::TestNode(QString("n%1").arg(i));
+                nodeStore.append(n);
+                nodes.append(n);
+            }
+            for (int i = 0; i < 12; ++i) {
+                auto *e = new Test::TestEdge(QString("e%1").arg(i),
+                                             nodes[i], nodes[(i + 1) % 12]);
+                edgeStore.append(e);
+                edges.append(e);
+            }
+            auto *chord = new Test::TestEdge("chord", nodes[0], nodes[6]);
+            edgeStore.append(chord);
+            edges.append(chord);
+        };
+
+        QList<Test::TestNode *> ns1, ns2;
+        QList<Test::TestEdge *> es1, es2;
+        QList<IGraphNode *> n1, n2;
+        QList<IGraphEdge *> e1, e2;
+        build(ns1, es1, n1, e1);
+        build(ns2, es2, n2, e2);
+
+        ForceLayout l1, l2;
+        l1.setNodes(n1); l1.setEdges(e1);
+        l2.setNodes(n2); l2.setEdges(e2);
+        for (int i = 0; i < 50; ++i) { l1.tick(); l2.tick(); }
+
+        const auto p1 = l1.currentPositions().nodePositions;
+        const auto p2 = l2.currentPositions().nodePositions;
+        QCOMPARE(p1.size(), p2.size());
+        for (auto it = p1.constBegin(); it != p1.constEnd(); ++it)
+            QCOMPARE(it.value(), p2.value(it.key()));
+
+        qDeleteAll(es1); qDeleteAll(es2); qDeleteAll(ns1); qDeleteAll(ns2);
+    }
+
     void energyConvergenceIsPlateauNotDecrease()
     {
         using namespace Graffodil;
