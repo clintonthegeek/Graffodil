@@ -1,6 +1,6 @@
 # Scene Scalability Implementation Plan (Phase 3)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make per-node edge lookups O(degree) instead of O(E) via an adjacency index (evaluation finding A4), and stop the group-refresh from running on every `QGraphicsScene::changed` emission (A5).
 
@@ -18,7 +18,7 @@
 - Modify: `src/core/src/GraphScene.cpp` (`addEdge`, `removeEdge`, `removeNode`, `connectedEdges`, `edgeBetween`, `edgeBetweenUndirected`, `adjustEdgesForNode`, `clearGraph`)
 - Test: `tests/tst_graphscene.cpp`
 
-- [ ] **Step 1: Write the failing/regression tests**
+- [x] **Step 1: Write the failing/regression tests**
 
 Add to `tests/tst_graphscene.cpp`. The first is the key regression risk: a
 naive *directional* index breaks when `GraphEdgeItem::reverse()` swaps
@@ -75,14 +75,14 @@ void multiEdgesAndSelfLoopIndexedOnce()
 (`tst_graphscene.cpp` gains `#include <memory>` if missing; after Phase 2 the
 unique_ptr ctor is the non-deprecated one.)
 
-- [ ] **Step 2: Run to check current behavior**
+- [x] **Step 2: Run to check current behavior**
 
 Run: `cmake --build build && (cd build && ctest -R tst_graphscene --output-on-failure)`
 Expected: PASS already (the linear scans behave correctly) — these tests pin
 behavior so the index can't regress it. That's the point: this task is a
 performance refactor under test.
 
-- [ ] **Step 3: Add the index**
+- [x] **Step 3: Add the index**
 
 `src/core/include/graffodil/GraphScene.h` — private members, next to
 `m_edges`:
@@ -125,7 +125,7 @@ In `clearGraph`, alongside `m_edges.clear();`:
     m_edgesByNode.clear();
 ```
 
-- [ ] **Step 4: Route the lookups through the index**
+- [x] **Step 4: Route the lookups through the index**
 
 Replace the four scan methods in `GraphScene.cpp`:
 
@@ -187,13 +187,13 @@ And in `removeNode`, replace the manual edge scan (the
 (The follow-up `for (const auto &eid : connectedIds) removeEdge(eid);` stays —
 removeEdge mutates the index, so iterate over the snapshot of ids.)
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `cmake --build build && (cd build && ctest --output-on-failure)`
 Expected: all PASS, including the two new tests and every existing
 scene/tools/integration test.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/core tests/tst_graphscene.cpp
@@ -216,7 +216,7 @@ else.
 - Modify: `src/core/src/GraphScene.cpp` (`refreshGroupsFromSceneChange`, `removeGroup`, `clearGraph`)
 - Test: `tests/tst_groups.cpp`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/tst_groups.cpp`:
 
@@ -248,12 +248,12 @@ void sceneChangeRefreshIsCoalesced()
 (Match the existing `tst_groups.cpp` style for GroupStyle construction — if
 its tests build styles differently, copy that idiom.)
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `cmake --build build && (cd build && ctest -R tst_groups --output-on-failure)`
 Expected: FAIL — `refreshGroupsNow()` doesn't exist yet (compile error).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/core/include/graffodil/GraphScene.h` — public, in the group-regions
 section:
@@ -309,7 +309,7 @@ In `clearGraph`, after `m_groupMembers.clear();`, the same disconnect block.
 (`addGroup` already reconnects via `Qt::UniqueConnection` + the flag, so
 re-adding groups later keeps working.)
 
-- [ ] **Step 4: Repair any existing tests that relied on synchronous refresh**
+- [x] **Step 4: Repair any existing tests that relied on synchronous refresh**
 
 Run: `cmake --build build && (cd build && ctest -R tst_groups --output-on-failure)`
 
@@ -326,11 +326,11 @@ Do NOT weaken assertions; only add the flush. Cases that go through
 `applyLayout()`, `addGroup()`, `setGroupMembers()`, or `setGroupStyle()` are
 unaffected (those refresh synchronously).
 
-- [ ] **Step 5: Full suite**
+- [x] **Step 5: Full suite**
 
 Run: `(cd build && ctest --output-on-failure)` — Expected: all PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/core tests/tst_groups.cpp
@@ -341,10 +341,10 @@ git commit -m "perf(core): coalesce group refresh to once per event-loop turn"
 
 ### Task 3: Close out the phase
 
-- [ ] Update `docs/graffodil-design.md` §Group regions: note the coalesced
+- [x] Update `docs/graffodil-design.md` §Group regions: note the coalesced
       refresh + `refreshGroupsNow()`; §GraphScene: note the endpoint-stability
       requirement on registered edges.
-- [ ] Update `docs/ROADMAP.md`: Phase 3 → ☑ with commit hash; Status-log line.
-- [ ] Sanity-check the demo: drag nodes inside a group at 60fps; group chrome
+- [x] Update `docs/ROADMAP.md`: Phase 3 → ☑ with commit hash; Status-log line.
+- [x] Sanity-check the demo: drag nodes inside a group at 60fps; group chrome
       follows with no visible lag.
-- [ ] `git add docs && git commit -m "docs: mark Phase 3 (scene scalability) complete"`
+- [x] `git add docs && git commit -m "docs: mark Phase 3 (scene scalability) complete"`

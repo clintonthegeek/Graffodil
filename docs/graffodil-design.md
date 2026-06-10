@@ -180,7 +180,17 @@ public:
     void removeEdge(const QString &id);
     IGraphEdge *edgeForId(const QString &id) const;
     IGraphEdge *edgeBetween(const QString &sourceId, const QString &targetId) const;
+    IGraphEdge *edgeBetweenUndirected(const QString &nodeId1, const QString &nodeId2) const;
+    QList<IGraphEdge *> connectedEdges(const QString &nodeId) const;
     QList<IGraphEdge *> edges() const;
+
+    // --- Adjacency index ---
+    // Efficient per-node edge lookups via internal QMultiHash index.
+    // connectedEdges(), edgeBetween(), edgeBetweenUndirected(), and adjustEdgesForNode()
+    // are all O(degree) instead of O(total_edges). Index is maintained automatically
+    // on addEdge()/removeEdge(). Note: an edge's source and target nodeIds must remain
+    // stable while the edge is registered; to change endpoints use removeEdge() followed
+    // by re-adding the edge with the new endpoint (no hot-swapping of nodeId references).
 
     // --- Tool dispatch ---
 
@@ -218,6 +228,12 @@ public:
     QStringList  groupIds() const;
     QSet<QString> groupMembers(const QString &groupId) const;
     GroupItem    *groupItem(const QString &groupId) const;
+
+    // Force an immediate synchronous refresh of all group bounds.
+    // Useful for code that moves nodes programmatically outside the normal
+    // event loop and needs groups to update immediately. Normally groups
+    // auto-refresh once per event-loop turn; this flushes any pending update.
+    void refreshGroupsNow();
 
     // --- Layout ---
 
@@ -277,7 +293,7 @@ class GroupItem : public QGraphicsObject {
 } // namespace Graffodil
 ```
 
-**Tracking:** GraphScene connects to its own `QGraphicsScene::changed` signal once the first group is added. On each emission (which fires for interactive drags, `applyLayout()`, `setPos()`, and any other item invalidation) every registered group recomputes the union of its members' `nodeBoundingRect()` values, pads by `GroupStyle::padding`, and pushes the result to its `GroupItem`. A recursion guard prevents re-entry while a refresh is in flight. `applyLayout()` also performs a synchronous refresh so callers that query `groupItem(id)->bounds()` immediately after the layout see fresh data.
+**Tracking:** GraphScene connects to its own `QGraphicsScene::changed` signal once the first group is added. Group refreshes are coalesced to at most once per event-loop turn — on each emission, a pending refresh is queued and deferred to the next idle moment rather than running immediately. This prevents excessive bounds recalculation when many nodes move in a single interaction. `applyLayout()` also performs a synchronous refresh so callers that query `groupItem(id)->bounds()` immediately after the layout see fresh data. For code that moves nodes programmatically outside the event-loop (e.g., scripted animations), call `refreshGroupsNow()` to force an immediate synchronous update of all group bounds. A recursion guard prevents re-entry while a refresh is in flight.
 
 **Ownership:** GroupItems are owned by the scene — `removeGroup()` and `clearGraph()` delete them. Member ids in the registry are authoritative; resolving them to `IGraphNode*` happens lazily on every refresh, so nodes removed via `removeNode()` drop out of group membership automatically.
 
