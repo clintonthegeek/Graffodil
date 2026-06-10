@@ -1,6 +1,6 @@
 # Edge Contract Implementation Plan (Phase 2)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Close the two contract holes in the edge abstraction (evaluation findings A1, A2) and unify strategy ownership (A8): custom `IGraphEdge` implementations must receive geometry notifications, `applyLayout()` must deliver `LayoutResult::edgeWaypoints`, and `GraphEdgeItem` must take its `EdgePathStrategy` as `std::unique_ptr`.
 
@@ -18,7 +18,7 @@
 - Modify: `src/core/src/GraphScene.cpp:390-407` (and drop the now-unneeded include)
 - Test: `tests/tst_graphscene.cpp`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `tests/tst_graphscene.cpp` (file scope, after includes — `TestHelpers.h` is
 already included by this test):
@@ -56,13 +56,13 @@ void customEdgeReceivesEndpointsChanged()
 }
 ```
 
-- [ ] **Step 2: Verify it fails to compile**
+- [x] **Step 2: Verify it fails to compile**
 
 Run: `cmake --build build`
 Expected: error — `endpointsChanged` is not a virtual of `TestEdge`/`IGraphEdge`
 (`marked 'override', but does not override`).
 
-- [ ] **Step 3: Add the virtual and rewire the scene**
+- [x] **Step 3: Add the virtual and rewire the scene**
 
 `src/core/include/graffodil/IGraphEdge.h` — inside the class, after
 `targetNodeId()`:
@@ -106,13 +106,13 @@ Remove `#include <graffodil/GraphEdgeItem.h>` from `GraphScene.cpp` (line 6) —
 the dynamic_cast was its only use. If the build then complains about another
 use, leave it and note where.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cmake --build build && (cd build && ctest --output-on-failure)`
 Expected: all PASS — the new slot, plus every existing test (GraphEdgeItem
 edges still adjust because `endpointsChanged()` → `adjust()`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core tests/tst_graphscene.cpp
@@ -129,7 +129,7 @@ git commit -m "feat(core): IGraphEdge::endpointsChanged — custom edges get geo
 - Modify: `src/core/src/GraphScene.cpp:376-388` (`applyLayout`)
 - Test: `tests/tst_graphscene.cpp`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```cpp
 void applyLayoutDeliversWaypoints()
@@ -160,12 +160,12 @@ void applyLayoutDeliversWaypoints()
 (Needs `#include <graffodil/GraphEdgeItem.h>` and
 `#include <graffodil/EdgePathStrategy.h>` in the test file if not present.)
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `cmake --build build && (cd build && ctest -R tst_graphscene --output-on-failure)`
 Expected: FAIL on the bounding-rect assertion (waypoints never delivered).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/core/include/graffodil/IGraphEdge.h` — after `endpointsChanged()`:
 
@@ -216,9 +216,9 @@ void GraphScene::applyLayout(const LayoutResult &result)
 }
 ```
 
-- [ ] **Step 4: Run tests** — Expected: PASS, including `tst_sugiyama` and `tst_integration`.
+- [x] **Step 4: Run tests** — Expected: PASS, including `tst_sugiyama` and `tst_integration`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core tests/tst_graphscene.cpp
@@ -239,7 +239,7 @@ ones (kept so Corbomite/PlanStan keep compiling), and migrate in-repo callers.
 - Modify: `src/core/src/GraphEdgeItem.cpp:13-27,36-39`
 - Modify (call sites): `demo/DemoWindow.cpp:103,393`, `tests/tst_graphscene.cpp:169,211`, `tests/tst_graphedgeitem.cpp:76`, `tests/tst_integration.cpp:34`, plus the Task-2 test added above (line numbers pre-Phase-2; re-locate with the grep below)
 
-- [ ] **Step 1: Add the overloads**
+- [x] **Step 1: Add the overloads**
 
 `src/core/include/graffodil/GraphEdgeItem.h` — replace the constructor
 declaration and `setPathStrategy`:
@@ -301,13 +301,13 @@ void GraphEdgeItem::setPathStrategy(EdgePathStrategy *strategy)
 }
 ```
 
-- [ ] **Step 2: Build — expect deprecation warnings at the in-repo call sites**
+- [x] **Step 2: Build — expect deprecation warnings at the in-repo call sites**
 
 Run: `cmake --build build 2>&1 | grep -i deprecated`
 Expected: warnings at each remaining raw-pointer call site (the repo builds;
 warnings are not errors).
 
-- [ ] **Step 3: Migrate every in-repo call site**
+- [x] **Step 3: Migrate every in-repo call site**
 
 Locate them:
 
@@ -332,12 +332,12 @@ arguments. Where a site passes a pre-built strategy variable instead of an
 inline `new`, wrap it: `std::unique_ptr<EdgePathStrategy>(strategy)`. Add
 `#include <memory>` where missing.
 
-- [ ] **Step 4: Verify zero deprecation warnings and green tests**
+- [x] **Step 4: Verify zero deprecation warnings and green tests**
 
 Run: `cmake --build build 2>&1 | grep -i deprecated` → no output.
 Run: `(cd build && ctest --output-on-failure)` → all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core demo tests
@@ -348,9 +348,9 @@ git commit -m "refactor(core): GraphEdgeItem takes EdgePathStrategy as unique_pt
 
 ### Task 4: Close out the phase
 
-- [ ] Update `docs/graffodil-design.md` §IGraphEdge: document the two new
+- [x] Update `docs/graffodil-design.md` §IGraphEdge: document the two new
       virtuals (copy the doc comments from the header) and the waypoint
       delivery behavior of `applyLayout()`, including the parallel-edge
       limitation.
-- [ ] Update `docs/ROADMAP.md`: Phase 2 → ☑ with commit hash; Status-log line.
-- [ ] `git add docs && git commit -m "docs: mark Phase 2 (edge contract) complete"`
+- [x] Update `docs/ROADMAP.md`: Phase 2 → ☑ with commit hash; Status-log line.
+- [x] `git add docs && git commit -m "docs: mark Phase 2 (edge contract) complete"`

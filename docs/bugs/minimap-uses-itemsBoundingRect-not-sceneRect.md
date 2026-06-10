@@ -116,3 +116,7 @@ add that call after each layout cycle (and after orientation flip) so
 the minimap reflects the full graph extent rather than the union of
 whatever subset the viewport has touched. That is a PlanStan-side
 follow-up tracked at `docs/todo/` once Graffodil ships the fix.
+
+## Resolution
+
+Fixed: extents now come from `GraphMinimap::effectiveSceneRect()` — authored `sceneRect()` first, items bbox + halo fallback, viewport union in both `paintEvent` and `mapToScene`. Covered by `tests/tst_minimap.cpp`.

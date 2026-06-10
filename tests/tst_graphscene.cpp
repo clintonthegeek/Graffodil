@@ -1,10 +1,22 @@
 #include <QTest>
 #include <QSignalSpy>
+#include <QCoreApplication>
+#include <QKeyEvent>
 #include "TestHelpers.h"
 #include <graffodil/GraphScene.h>
+#include <graffodil/GraphTool.h>
 #include <graffodil/Anchors.h>
 #include <graffodil/GraphEdgeItem.h>
 #include <graffodil/EdgePathStrategy.h>
+
+class KeyRecordingTool : public Graffodil::GraphTool {
+public:
+    void mousePressEvent(QGraphicsSceneMouseEvent *) override {}
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *) override {}
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *) override {}
+    void keyReleaseEvent(QKeyEvent *) override { releasedCount++; }
+    int releasedCount = 0;
+};
 
 // A node that publishes arbitrary named anchors (like DAW plugin ports),
 // plus overrides anchorToward() for swivel behavior on a subset.
@@ -38,6 +50,13 @@ public:
     }
     QRectF nodeBoundingRect() const override { return mapToScene(rect()).boundingRect(); }
     QGraphicsItem *graphicsItem() override { return this; }
+};
+
+class AdjustRecordingEdge : public Graffodil::Test::TestEdge {
+public:
+    using TestEdge::TestEdge;
+    void endpointsChanged() override { ++adjustCount; }
+    int adjustCount = 0;
 };
 
 using namespace Graffodil;
@@ -168,7 +187,7 @@ private slots:
         n2.setPos(300, 0);
         auto *edge = new GraphEdgeItem(&n1, "audio_out_r",
                                         &n2, "sidechain_in",
-                                        new DirectPathStrategy);
+                                        std::make_unique<DirectPathStrategy>());
         edge->adjust();
         QVERIFY(!edge->path().isEmpty());
         const QPointF start = edge->path().elementAt(0);
@@ -210,7 +229,7 @@ private slots:
         TestNode b("b", {300, 200});
         auto *edge = new GraphEdgeItem(&a, QString(),   // swivel source
                                         &b, QString(),  // swivel target
-                                        new DirectPathStrategy);
+                                        std::make_unique<DirectPathStrategy>());
         edge->adjust();
         QVERIFY(!edge->path().isEmpty());
     }
@@ -245,6 +264,108 @@ private slots:
 
         scene.selectNode("unknown");  // no-op
         QCOMPARE(scene.selectedNodeId(), QString("alpha"));
+    }
+
+    void keyReleaseReachesActiveTool()
+    {
+        Graffodil::GraphScene scene;
+        KeyRecordingTool tool;
+        scene.setActiveTool(&tool);
+
+        QKeyEvent ev(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &ev);
+
+        QCOMPARE(tool.releasedCount, 1);
+        scene.setActiveTool(nullptr);  // detach before tool goes out of scope
+    }
+
+    void customEdgeReceivesEndpointsChanged()
+    {
+        Graffodil::GraphScene scene;
+        auto *a = new Graffodil::Test::TestNode("a", {0, 0});
+        auto *b = new Graffodil::Test::TestNode("b", {200, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *edge = new AdjustRecordingEdge("e1", a, b);
+        scene.addEdge(edge);
+
+        scene.adjustAllEdges();
+        QCOMPARE(edge->adjustCount, 1);
+
+        scene.adjustEdgesForNode("a");
+        QCOMPARE(edge->adjustCount, 2);
+
+        scene.adjustEdgesForNode("unrelated-id");
+        QCOMPARE(edge->adjustCount, 2);
+    }
+
+    void applyLayoutDeliversWaypoints()
+    {
+        using namespace Graffodil;
+        GraphScene scene;
+        auto *a = new Test::TestNode("a", {0, 0});
+        auto *b = new Test::TestNode("b", {400, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *edge = new GraphEdgeItem(a, QString(), b, QString(),
+                                       std::make_unique<PolylinePathStrategy>());
+        scene.addEdge(edge);
+
+        LayoutResult result;
+        result.nodePositions["a"] = QPointF(0, 0);
+        result.nodePositions["b"] = QPointF(400, 0);
+        result.edgeWaypoints[{QStringLiteral("a"), QStringLiteral("b")}] =
+            {QPointF(200, 150)};
+        scene.applyLayout(result);
+
+        // The polyline must detour through the waypoint at y=150;
+        // without delivery it is a straight line with y extent ~0.
+        QVERIFY(edge->path().boundingRect().bottom() >= 149.0);
+    }
+
+    void adjacencyIndexSurvivesReverse()
+    {
+        using namespace Graffodil;
+        GraphScene scene;
+        auto *a = new Test::TestNode("a", {0, 0});
+        auto *b = new Test::TestNode("b", {200, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *edge = new GraphEdgeItem(a, QString(), b, QString(),
+                                       std::make_unique<DirectPathStrategy>());
+        scene.addEdge(edge);
+        const QString id = edge->edgeId();
+
+        edge->reverse();                 // endpoints swap underneath the registry
+        scene.removeEdge(id);            // must fully clean up the index
+
+        QVERIFY(scene.connectedEdges("a").isEmpty());
+        QVERIFY(scene.connectedEdges("b").isEmpty());
+        QVERIFY(scene.edgeForId(id) == nullptr);
+        delete edge;
+    }
+
+    void multiEdgesAndSelfLoopIndexedOnce()
+    {
+        using namespace Graffodil;
+        GraphScene scene;
+        auto *a = new Test::TestNode("a", {0, 0});
+        auto *b = new Test::TestNode("b", {200, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *e1   = new Test::TestEdge("e1",   a, b);
+        auto *e2   = new Test::TestEdge("e2",   a, b);   // parallel edge
+        auto *loop = new Test::TestEdge("loop", a, a);   // self-loop
+        scene.addEdge(e1);
+        scene.addEdge(e2);
+        scene.addEdge(loop);
+
+        QCOMPARE(scene.connectedEdges("a").size(), 3);  // e1, e2, loop — loop once
+        QCOMPARE(scene.connectedEdges("b").size(), 2);
+
+        scene.removeNode("b");                           // cascades e1+e2
+        QCOMPARE(scene.connectedEdges("a").size(), 1);   // just the loop
+        QCOMPARE(scene.edges().size(), 1);
     }
 };
 

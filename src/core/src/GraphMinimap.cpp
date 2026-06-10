@@ -29,6 +29,21 @@ void GraphMinimap::setEnabled(bool visible)
     setVisible(visible);
 }
 
+QRectF GraphMinimap::effectiveSceneRect(QGraphicsView *view)
+{
+    if (!view || !view->scene())
+        return {};
+    QRectF rect = view->scene()->sceneRect();
+    if (rect.isEmpty()) {
+        rect = view->scene()->itemsBoundingRect();
+        if (rect.isNull())
+            return {};
+        rect.adjust(-50, -50, 50, 50);
+    }
+    return rect.united(
+        view->mapToScene(view->viewport()->rect()).boundingRect());
+}
+
 void GraphMinimap::paintEvent(QPaintEvent * /*event*/)
 {
     if (!m_graphicsView || !m_graphicsView->scene())
@@ -43,10 +58,9 @@ void GraphMinimap::paintEvent(QPaintEvent * /*event*/)
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
 
     // Scene bounds
-    QRectF sceneRect = m_graphicsView->scene()->itemsBoundingRect();
+    QRectF sceneRect = effectiveSceneRect(m_graphicsView);
     if (sceneRect.isNull())
         return;
-    sceneRect.adjust(-50, -50, 50, 50);
 
     // Scale scene to fit minimap
     qreal scaleX = (width() - 4) / sceneRect.width();
@@ -113,10 +127,9 @@ QPointF GraphMinimap::mapToScene(const QPoint &minimapPos) const
     if (!m_graphicsView || !m_graphicsView->scene())
         return {};
 
-    QRectF sceneRect = m_graphicsView->scene()->itemsBoundingRect();
+    QRectF sceneRect = effectiveSceneRect(m_graphicsView);
     if (sceneRect.isNull())
         return {};
-    sceneRect.adjust(-50, -50, 50, 50);
 
     qreal scaleX = (width() - 4) / sceneRect.width();
     qreal scaleY = (height() - 4) / sceneRect.height();

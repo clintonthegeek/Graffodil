@@ -3,7 +3,6 @@
 #include <graffodil/GroupItem.h>
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IGraphEdge.h>
-#include <graffodil/GraphEdgeItem.h>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneWheelEvent>
 #include <QKeyEvent>
@@ -36,10 +35,10 @@ void GraphScene::removeNode(const QString &id)
     // node, and any subsequent access (including paint-time bounding-rect
     // queries) would crash.
     QList<QString> connectedIds;
-    for (auto *edge : m_edges) {
-        if (edge->sourceNode() == node || edge->targetNode() == node)
-            connectedIds.append(edge->edgeId());
-    }
+    const QList<IGraphEdge *> touching = m_edgesByNode.values(id);
+    connectedIds.reserve(touching.size());
+    for (auto *edge : touching)
+        connectedIds.append(edge->edgeId());
     for (const auto &eid : connectedIds)
         removeEdge(eid);
 
@@ -61,13 +60,7 @@ void GraphScene::removeNode(const QString &id)
 
 QList<IGraphEdge *> GraphScene::connectedEdges(const QString &nodeId) const
 {
-    QList<IGraphEdge *> result;
-    for (auto *edge : m_edges) {
-        if (edge->sourceNode()->nodeId() == nodeId
-            || edge->targetNode()->nodeId() == nodeId)
-            result.append(edge);
-    }
-    return result;
+    return m_edgesByNode.values(nodeId);
 }
 
 IGraphNode *GraphScene::nodeForId(const QString &id) const
@@ -85,6 +78,9 @@ void GraphScene::addEdge(IGraphEdge *edge)
     if (!edge || m_edges.contains(edge->edgeId()))
         return;
     m_edges.insert(edge->edgeId(), edge);
+    m_edgesByNode.insert(edge->sourceNodeId(), edge);
+    if (edge->targetNodeId() != edge->sourceNodeId())
+        m_edgesByNode.insert(edge->targetNodeId(), edge);
     QGraphicsItem *gi = edge->graphicsItem();
     if (gi->zValue() == 0.0)
         gi->setZValue(m_edgesAboveNodes ? DefaultNodeZ : DefaultEdgeZ);
@@ -97,11 +93,7 @@ void GraphScene::setEdgesAboveNodes(bool above)
     if (m_edgesAboveNodes == above)
         return;
     m_edgesAboveNodes = above;
-    // Re-assign z on items still at the prior defaults.
-    const qreal prevNodeZ = above ? DefaultNodeZ : DefaultEdgeZ;  // new meaning
-    const qreal prevEdgeZ = above ? DefaultEdgeZ : DefaultNodeZ;
-    Q_UNUSED(prevNodeZ);
-    Q_UNUSED(prevEdgeZ);
+    // Re-assign z on items still at either default value.
     for (auto *node : m_nodes) {
         QGraphicsItem *gi = node->graphicsItem();
         qreal z = gi->zValue();
@@ -127,6 +119,10 @@ void GraphScene::removeEdge(const QString &id)
     if (it == m_edges.end())
         return;
     IGraphEdge *edge = it.value();
+    // Remove from adjacency index before erasing — covers both current
+    // endpoints regardless of any prior reverse() call.
+    m_edgesByNode.remove(edge->sourceNodeId(), edge);
+    m_edgesByNode.remove(edge->targetNodeId(), edge);
     removeItem(edge->graphicsItem());
     m_edges.erase(it);
     emit edgeRemoved(id);
@@ -139,20 +135,22 @@ IGraphEdge *GraphScene::edgeForId(const QString &id) const
 
 IGraphEdge *GraphScene::edgeBetween(const QString &sourceId, const QString &targetId) const
 {
-    for (auto *edge : m_edges) {
-        if (edge->sourceNode()->nodeId() == sourceId
-            && edge->targetNode()->nodeId() == targetId) {
+    for (auto it = m_edgesByNode.constFind(sourceId);
+         it != m_edgesByNode.constEnd() && it.key() == sourceId; ++it) {
+        IGraphEdge *edge = it.value();
+        if (edge->sourceNodeId() == sourceId && edge->targetNodeId() == targetId)
             return edge;
-        }
     }
     return nullptr;
 }
 
 IGraphEdge *GraphScene::edgeBetweenUndirected(const QString &a, const QString &b) const
 {
-    for (auto *edge : m_edges) {
-        const QString &s = edge->sourceNode()->nodeId();
-        const QString &t = edge->targetNode()->nodeId();
+    for (auto it = m_edgesByNode.constFind(a);
+         it != m_edgesByNode.constEnd() && it.key() == a; ++it) {
+        IGraphEdge *edge = it.value();
+        const QString s = edge->sourceNodeId();
+        const QString t = edge->targetNodeId();
         if ((s == a && t == b) || (s == b && t == a))
             return edge;
     }
@@ -186,6 +184,7 @@ GraphScene::ClearResult GraphScene::clearGraph()
         emit edgeRemoved(edge->edgeId());
     }
     m_edges.clear();
+    m_edgesByNode.clear();
 
     for (auto *node : result.nodes) {
         removeItem(node->graphicsItem());
@@ -200,6 +199,12 @@ GraphScene::ClearResult GraphScene::clearGraph()
     }
     m_groups.clear();
     m_groupMembers.clear();
+
+    if (m_groupsChangeConnected) {
+        disconnect(this, &QGraphicsScene::changed,
+                   this, &GraphScene::refreshGroupsFromSceneChange);
+        m_groupsChangeConnected = false;
+    }
 
     return result;
 }
@@ -317,6 +322,12 @@ void GraphScene::removeGroup(const QString &groupId)
     delete item; // scene owns GroupItems
     m_groups.erase(it);
     m_groupMembers.remove(groupId);
+
+    if (m_groups.isEmpty() && m_groupsChangeConnected) {
+        disconnect(this, &QGraphicsScene::changed,
+                   this, &GraphScene::refreshGroupsFromSceneChange);
+        m_groupsChangeConnected = false;
+    }
 }
 
 QStringList GraphScene::groupIds() const
@@ -334,11 +345,23 @@ GroupItem *GraphScene::groupItem(const QString &groupId) const
     return m_groups.value(groupId, nullptr);
 }
 
+void GraphScene::refreshGroupsNow()
+{
+    refreshGroups();
+}
+
 void GraphScene::refreshGroupsFromSceneChange(const QList<QRectF> &)
 {
-    if (m_refreshingGroups)
-        return; // changed() re-emits while we repaint; guard against recursion
-    refreshGroups();
+    // changed() fires on every item invalidation (hover, selection, repaints)
+    // — far more often than members actually move. Coalesce to at most one
+    // geometric refresh per event-loop turn.
+    if (m_refreshingGroups || m_groupRefreshQueued || m_groups.isEmpty())
+        return;
+    m_groupRefreshQueued = true;
+    QMetaObject::invokeMethod(this, [this] {
+        m_groupRefreshQueued = false;
+        refreshGroups();
+    }, Qt::QueuedConnection);
 }
 
 void GraphScene::refreshGroups()
@@ -380,6 +403,12 @@ void GraphScene::applyLayout(const LayoutResult &result)
         if (auto *node = nodeForId(it.key()))
             node->graphicsItem()->setPos(it.value());
     }
+    // Deliver routing hints before adjusting so the recomputed paths see them.
+    for (auto it = result.edgeWaypoints.constBegin();
+         it != result.edgeWaypoints.constEnd(); ++it) {
+        if (auto *edge = edgeBetween(it.key().first, it.key().second))
+            edge->setWaypoints(it.value());
+    }
     adjustAllEdges();
     // Groups derive from member positions; refresh synchronously so
     // callers that query bounds right after applyLayout() see fresh data
@@ -389,21 +418,15 @@ void GraphScene::applyLayout(const LayoutResult &result)
 
 void GraphScene::adjustEdgesForNode(const QString &nodeId)
 {
-    for (auto *edge : m_edges) {
-        if (edge->sourceNode()->nodeId() == nodeId
-            || edge->targetNode()->nodeId() == nodeId) {
-            if (auto *item = dynamic_cast<GraphEdgeItem *>(edge))
-                item->adjust();
-        }
-    }
+    for (auto it = m_edgesByNode.constFind(nodeId);
+         it != m_edgesByNode.constEnd() && it.key() == nodeId; ++it)
+        it.value()->endpointsChanged();
 }
 
 void GraphScene::adjustAllEdges()
 {
-    for (auto *edge : m_edges) {
-        if (auto *item = dynamic_cast<GraphEdgeItem *>(edge))
-            item->adjust();
-    }
+    for (auto *edge : m_edges)
+        edge->endpointsChanged();
 }
 
 // Tool dispatch — forward events to active tool if set, but also let the
@@ -456,6 +479,14 @@ void GraphScene::keyPressEvent(QKeyEvent *e)
         m_activeTool->keyPressEvent(e);
     else
         QGraphicsScene::keyPressEvent(e);
+}
+
+void GraphScene::keyReleaseEvent(QKeyEvent *e)
+{
+    if (m_activeTool)
+        m_activeTool->keyReleaseEvent(e);
+    else
+        QGraphicsScene::keyReleaseEvent(e);
 }
 
 } // namespace Graffodil

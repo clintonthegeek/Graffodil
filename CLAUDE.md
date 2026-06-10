@@ -16,13 +16,11 @@ cd build && ctest --output-on-failure
 Core + Extensions model. See `docs/graffodil-design.md` for the full spec.
 
 - `Graffodil::Core` — interfaces, scene, tools, edge rendering, utilities
+- `Graffodil::Spatial` — QuadTree, SpatialGrid (depends: Qt6::Core only)
 - `Graffodil::Sugiyama` — Sugiyama layered layout (depends: Core)
-- `Graffodil::Force` — ForceAtlas2 + multilevel (depends: Core, Batch)
+- `Graffodil::Force` — ForceAtlas2 + multilevel (depends: Core, Spatial)
 - `Graffodil::Circular` — Circular layout (depends: Core)
 - `Graffodil::Batch` — Batch rendering for 10K+ nodes (depends: Core)
-
-(Roadmap Phase 5 extracts a `Graffodil::Spatial` module — QuadTree/SpatialGrid —
-and re-points Force at it; update this list when that lands.)
 
 ## Current Status (2026-06-09)
 

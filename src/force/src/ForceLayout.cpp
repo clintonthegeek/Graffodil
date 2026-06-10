@@ -5,7 +5,6 @@
 #include <graffodil/QuadTree.h>
 
 #include <QQueue>
-#include <QRandomGenerator>
 #include <QSet>
 #include <cmath>
 
@@ -116,6 +115,10 @@ void ForceLayout::buildInternalStructures()
         m_degree[srcId]++;
         m_degree[tgtId]++;
     }
+
+    m_nodeMass.resize(n);
+    for (int i = 0; i < n; ++i)
+        m_nodeMass[i] = m_degree.value(m_ids[i], 0) + 1.0;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,7 +247,6 @@ void ForceLayout::initialize()
         }
 
         // Place nodes on concentric rings
-        auto *rng = QRandomGenerator::global();
         double componentMaxRadius = 0.0;
 
         for (int nodeIdx : component) {
@@ -264,8 +266,8 @@ void ForceLayout::initialize()
                 double angleStep = 2.0 * M_PI / count;
                 angle = index * angleStep;
             }
-            // Small jitter to prevent exact overlaps
-            angle += (rng->generateDouble() - 0.5) * 0.2;
+            // Deterministic jitter (based on node index) to prevent exact overlaps
+            angle += ((nodeIdx * 2654435761u) % 1000u / 1000.0 - 0.5) * 0.2;
 
             m_positions[nodeIdx] = QPointF(
                 offsetX + radius * std::cos(angle),
@@ -299,7 +301,7 @@ void ForceLayout::initialize()
     m_prevEnergy = 0.0;
     m_iteration = 0;
     m_stableCount = 0;
-    m_energyDecreaseCount = 0;
+    m_energyStableCount = 0;
     m_converged = false;
     m_initialized = true;
 }
@@ -361,13 +363,13 @@ bool ForceLayout::tick()
         // Barnes-Hut via QuadTree
         QVector<qreal> masses(n);
         for (int i = 0; i < n; ++i)
-            masses[i] = m_degree.value(m_ids[i], 0) + 1.0;
+            masses[i] = m_nodeMass[i];
 
         QuadTree quadTree;
         quadTree.build(m_positions, masses);
 
         for (int i = 0; i < n; ++i) {
-            double nodeMass = m_degree.value(m_ids[i], 0) + 1.0;
+            double nodeMass = m_nodeMass[i];
             QPointF repulsion = quadTree.computeRepulsion(
                 m_positions[i], m_repelForce, nodeMass, 0.8);
             m_displacements[i] += repulsion;
@@ -375,13 +377,13 @@ bool ForceLayout::tick()
     } else {
         // Naive O(n^2) repulsion with degree weighting
         for (int i = 0; i < n; ++i) {
-            double degI = m_degree.value(m_ids[i], 0) + 1.0;
+            double degI = m_nodeMass[i];
             for (int j = i + 1; j < n; ++j) {
                 QPointF delta = m_positions[i] - m_positions[j];
                 double dist = std::sqrt(delta.x() * delta.x() + delta.y() * delta.y());
                 dist = std::max(dist, EPSILON);
 
-                double degJ = m_degree.value(m_ids[j], 0) + 1.0;
+                double degJ = m_nodeMass[j];
                 double force = m_repelForce * std::sqrt(degI * degJ) / (dist * dist);
 
                 QPointF normalized(delta.x() / dist, delta.y() / dist);
@@ -406,7 +408,7 @@ bool ForceLayout::tick()
 
     // 5. Center force (pull toward origin), degree-weighted
     for (int i = 0; i < n; ++i) {
-        double deg = m_degree.value(m_ids[i], 0) + 1.0;
+        double deg = m_nodeMass[i];
         m_displacements[i] -= m_positions[i] * m_centerForce * deg;
     }
 
@@ -415,7 +417,7 @@ bool ForceLayout::tick()
     double globalTraction = 0.0;
 
     for (int i = 0; i < n; ++i) {
-        double deg = m_degree.value(m_ids[i], 0) + 1.0;
+        double deg = m_nodeMass[i];
 
         double swingX = m_displacements[i].x() - m_previousForces[i].x();
         double swingY = m_displacements[i].y() - m_previousForces[i].y();
@@ -430,10 +432,14 @@ bool ForceLayout::tick()
     }
 
     double tolerance = 1.0;
+    const double previousSpeed = m_globalSpeed;
     if (globalSwinging > EPSILON)
         m_globalSpeed = tolerance * globalTraction / globalSwinging;
 
-    m_globalSpeed = std::min(m_globalSpeed, m_globalSpeed * 1.5);
+    // ForceAtlas2 rule: cap growth at 1.5x the previous iteration's speed.
+    // (The old expression min(x, x*1.5) compared the new speed to itself
+    // and was a no-op.)
+    m_globalSpeed = std::min(m_globalSpeed, previousSpeed * 1.5);
     m_globalSpeed = std::max(m_globalSpeed, EPSILON);
 
     // 7. Apply displacement with per-node speed
@@ -443,7 +449,7 @@ bool ForceLayout::tick()
     for (int i = 0; i < n; ++i) {
         if (m_pinned[i]) continue;
 
-        double deg = m_degree.value(m_ids[i], 0) + 1.0;
+        double deg = m_nodeMass[i];
 
         // Per-node swinging
         double swingX = m_displacements[i].x() - m_previousForces[i].x();
@@ -478,18 +484,26 @@ bool ForceLayout::tick()
 
     // 8. Convergence detection
 
-    // Energy-based convergence
-    if (m_prevEnergy > EPSILON && m_energy < m_prevEnergy * 0.999) {
-        ++m_energyDecreaseCount;
-        if (m_energyDecreaseCount >= 10) {
-            m_converged = true;
+    // Energy-plateau convergence: converged when energy stops changing
+    // run-over-run. (A correctly cooling simulation *decreases* energy every
+    // tick — decreasing energy means still improving, not converged.)
+    if (m_prevEnergy > EPSILON) {
+        const double relChange =
+            std::abs(m_energy - m_prevEnergy) / m_prevEnergy;
+        if (relChange < 0.001) {
+            ++m_energyStableCount;
+            if (m_energyStableCount >= 10)
+                m_converged = true;
+        } else {
+            m_energyStableCount = 0;
         }
-    } else {
-        m_energyDecreaseCount = 0;
     }
 
     // Displacement-based fallback
-    double convergenceThreshold = canvasArea * 0.0001;
+    // Use a threshold relative to link distance so it is independent of
+    // canvas scale (the cap on node movement is 100 px — a canvas-relative
+    // threshold would fire on the very first tick for large graphs).
+    double convergenceThreshold = m_linkDistance * 0.1;
     if (maxDisplacement < convergenceThreshold) {
         ++m_stableCount;
         if (m_stableCount >= STABLE_ITERATIONS_REQUIRED) {

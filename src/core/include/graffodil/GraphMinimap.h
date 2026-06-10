@@ -13,6 +13,8 @@ public:
 
     void setEnabled(bool visible);
 
+    static QRectF effectiveSceneRect(QGraphicsView *view);
+
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;

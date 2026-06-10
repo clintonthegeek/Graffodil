@@ -1,6 +1,6 @@
 # Graffodil Roadmap & Task Status
 
-**Updated:** 2026-06-09
+**Updated:** 2026-06-10
 **Findings source:** [`docs/evaluation-2026-06-09.md`](evaluation-2026-06-09.md) (finding IDs B1–B6, A1–A9, P1–P5 referenced below)
 
 This is the **single source of truth for work status** on Graffodil. When you
@@ -22,11 +22,11 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 | Phase | Status | Doc | Findings addressed |
 |-------|--------|-----|--------------------|
-| 1. Bugfix punch list | ☐ not started | [plan](superpowers/plans/2026-06-09-bugfix-punchlist.md) | B1 B2 B3 B4 B5 B6 |
-| 2. Edge contract | ☐ not started | [plan](superpowers/plans/2026-06-09-edge-contract.md) | A1 A2 A8 |
-| 3. Scene scalability | ☐ not started | [plan](superpowers/plans/2026-06-09-scene-scalability.md) | A4 A5 |
-| 4. Hot-path caching | ☐ not started | [plan](superpowers/plans/2026-06-09-hot-path-caching.md) | P1 P2 P3 |
-| 5. Spatial module | ☐ not started | [plan](superpowers/plans/2026-06-09-spatial-module.md) | A3 |
+| 1. Bugfix punch list | ☑ complete | [plan](superpowers/plans/2026-06-09-bugfix-punchlist.md) | B1 B2 B3 B4 B5 B6 |
+| 2. Edge contract | ☑ complete | [plan](superpowers/plans/2026-06-09-edge-contract.md) | A1 A2 A8 |
+| 3. Scene scalability | ☑ complete | [plan](superpowers/plans/2026-06-09-scene-scalability.md) | A4 A5 |
+| 4. Hot-path caching | ☑ complete | [plan](superpowers/plans/2026-06-09-hot-path-caching.md) | P1 P2 P3 |
+| 5. Spatial module | ☑ complete | [plan](superpowers/plans/2026-06-09-spatial-module.md) | A3 |
 | 6a. Animated layout transitions | ☐ spec'd, needs plan | [spec](specs/animated-layout-transitions.md) | feature |
 | 6b. Sugiyama refactor + junction dots | ☐ spec'd, needs plan | [spec](specs/sugiyama-refactor-and-junctions.md) | A6 + ConnectorItem revival |
 | 6c. Edge labels | ☐ spec'd, needs plan | [spec](specs/edge-labels.md) | feature |
@@ -69,6 +69,11 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 ## Status log
 
+- **2026-06-10** — Phase 5 (spatial module) complete. QuadTree+SpatialGrid extracted into Graffodil::Spatial; Force links Spatial not Batch. Final commit: 477c0a2.
+- **2026-06-10** — Phase 4 (hot-path caching) complete. GraphEdgeItem path metrics + shape cached; ForceLayout mass-by-index vector; fixed nondeterministic BFS placement. Final commit: fc6d8c1.
+- **2026-06-10** — Phase 3 (scene scalability) complete. Adjacency index (O(degree) lookups) + coalesced group refresh + refreshGroupsNow(). Final commit: 82a655d.
+- **2026-06-10** — Phase 2 (edge contract) complete. IGraphEdge::endpointsChanged, setWaypoints; applyLayout delivers waypoints; GraphEdgeItem strategy ownership moved to unique_ptr. Final commit: eca40f3.
+- **2026-06-10** — Phase 1 (bugfix punch list) complete. All 6 bugs fixed (B1–B6). Final commit: 01141bb.
 - **2026-06-09** — Full library evaluation performed; findings recorded in
   `docs/evaluation-2026-06-09.md`; roadmap, 5 plans, and 5 specs written.
   No remediation code changes yet.

@@ -2,6 +2,8 @@
 
 #include <graffodil/IGraphNode.h>
 #include <QGraphicsItem>
+#include <QList>
+#include <QPointF>
 #include <QString>
 
 namespace Graffodil {
@@ -25,6 +27,21 @@ public:
     QString targetNodeId() const {
         IGraphNode *n = targetNode();
         return n ? n->nodeId() : QString();
+    }
+
+    /// Notification that either endpoint node may have moved or changed
+    /// geometry. The scene calls this from adjustEdgesForNode(),
+    /// adjustAllEdges(), and applyLayout(). Implementations should recompute
+    /// their visual path. Default is a no-op so data-only edges stay valid.
+    virtual void endpointsChanged() {}
+
+    /// Routing hints delivered by GraphScene::applyLayout() when a layout
+    /// engine produced LayoutResult::edgeWaypoints for this edge's
+    /// (sourceId, targetId) pair. Scene coordinates, ordered source→target.
+    /// Default ignores them; GraphEdgeItem feeds them to its path strategy.
+    virtual void setWaypoints(const QList<QPointF> &waypoints)
+    {
+        Q_UNUSED(waypoints);
     }
 
     /// Bridge to QGraphicsItem, same pattern as IGraphNode.

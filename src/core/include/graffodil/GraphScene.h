@@ -4,6 +4,7 @@
 #include <graffodil/Types.h>
 #include <QGraphicsScene>
 #include <QHash>
+#include <QMultiHash>
 #include <QSet>
 #include <QStringList>
 
@@ -120,6 +121,12 @@ public:
     /// remains with the scene. Returns nullptr for unknown id.
     GroupItem *groupItem(const QString &groupId) const;
 
+    /// Synchronously recompute all group bounds from current member positions.
+    /// Normally unnecessary — refresh is coalesced automatically once per
+    /// event-loop turn — but useful right after programmatic setPos() when
+    /// bounds are queried before returning to the event loop.
+    void refreshGroupsNow();
+
     // --- Layout ---
     void applyLayout(const LayoutResult &result);
 
@@ -143,6 +150,7 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
     void wheelEvent(QGraphicsSceneWheelEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
+    void keyReleaseEvent(QKeyEvent *e) override;
 
 private slots:
     void refreshGroupsFromSceneChange(const QList<QRectF> &region);
@@ -154,6 +162,9 @@ private:
 
     QHash<QString, IGraphNode *> m_nodes;
     QHash<QString, IGraphEdge *> m_edges;
+    /// nodeId -> edges touching that node (both endpoints). An edge with
+    /// distinct endpoints appears under two keys; a self-loop under one key.
+    QMultiHash<QString, IGraphEdge *> m_edgesByNode;
     GraphTool *m_activeTool = nullptr;
     bool m_edgesAboveNodes = false;
 
@@ -161,6 +172,7 @@ private:
     QHash<QString, QSet<QString>>  m_groupMembers;
     bool m_groupsChangeConnected = false;
     bool m_refreshingGroups = false;
+    bool m_groupRefreshQueued = false;
 };
 
 } // namespace Graffodil

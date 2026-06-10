@@ -1,6 +1,6 @@
 # Spatial Module Extraction Implementation Plan (Phase 5)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Break the Force→Batch dependency (evaluation finding A3): `QuadTree` and `SpatialGrid` move out of the Batch *rendering* module into a new `Graffodil::Spatial` utility module that both Force and (future) routing code consume.
 
@@ -20,7 +20,7 @@
 - Move: `src/batch/include/graffodil/SpatialGrid.h` → `src/spatial/include/graffodil/SpatialGrid.h`
 - Modify: `CMakeLists.txt` (root), `src/batch/CMakeLists.txt`, `src/force/CMakeLists.txt`, `tests/CMakeLists.txt`
 
-- [ ] **Step 1: Verify the moved code only needs QtCore**
+- [x] **Step 1: Verify the moved code only needs QtCore**
 
 ```bash
 grep -h '#include' src/batch/include/graffodil/QuadTree.h \
@@ -33,7 +33,7 @@ Expected: only QtCore types (`<QPointF>`, `<QRectF>`, `<QVector>`,
 appears, STOP and re-plan the link line (add the needed Qt component to
 Step 3's `target_link_libraries`).
 
-- [ ] **Step 2: Move the files with git**
+- [x] **Step 2: Move the files with git**
 
 ```bash
 mkdir -p src/spatial/include/graffodil src/spatial/src
@@ -42,7 +42,7 @@ git mv src/batch/src/QuadTree.cpp                src/spatial/src/QuadTree.cpp
 git mv src/batch/include/graffodil/SpatialGrid.h src/spatial/include/graffodil/SpatialGrid.h
 ```
 
-- [ ] **Step 3: Write the module CMakeLists**
+- [x] **Step 3: Write the module CMakeLists**
 
 `src/spatial/CMakeLists.txt`:
 
@@ -61,7 +61,7 @@ target_sources(graffodil-spatial PRIVATE
 )
 ```
 
-- [ ] **Step 4: Wire the other CMakeLists**
+- [x] **Step 4: Wire the other CMakeLists**
 
 Root `CMakeLists.txt` — insert before the batch/force lines (order matters
 only for readability; CMake resolves targets at generate time):
@@ -107,7 +107,7 @@ target_link_libraries(tst_quadtree PRIVATE Graffodil::Spatial Qt6::Test)
 add_test(NAME tst_quadtree COMMAND tst_quadtree)
 ```
 
-- [ ] **Step 5: Clean-configure, build, full test suite**
+- [x] **Step 5: Clean-configure, build, full test suite**
 
 A moved-file build needs a reconfigure:
 
@@ -128,7 +128,7 @@ grep -rn 'QuadTree\|SpatialGrid' src/batch/
 
 Expected: no matches.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A src/ tests/CMakeLists.txt CMakeLists.txt
@@ -144,7 +144,7 @@ git commit -m "refactor(build): extract Graffodil::Spatial — Force no longer l
 - Modify: `docs/graffodil-design.md` (§Architecture / Boundary Map)
 - Modify: `docs/ROADMAP.md`
 
-- [ ] **Step 1: CLAUDE.md** — the module list becomes:
+- [x] **Step 1: CLAUDE.md** — the module list becomes:
 
 ```markdown
 - `Graffodil::Core` — interfaces, scene, tools, edge rendering, utilities
@@ -155,14 +155,14 @@ git commit -m "refactor(build): extract Graffodil::Spatial — Force no longer l
 - `Graffodil::Batch` — Batch rendering for 10K+ nodes (depends: Core)
 ```
 
-- [ ] **Step 2: graffodil-design.md** — in the Boundary Map / module sections,
+- [x] **Step 2: graffodil-design.md** — in the Boundary Map / module sections,
 move QuadTree+SpatialGrid under a new `Graffodil::Spatial` entry and correct
 the Force dependency note (find the affected lines with
 `grep -n 'QuadTree\|SpatialGrid\|Batch' docs/graffodil-design.md`).
 
-- [ ] **Step 3: ROADMAP.md** — Phase 5 → ☑ with commit hash; Status-log line.
+- [x] **Step 3: ROADMAP.md** — Phase 5 → ☑ with commit hash; Status-log line.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CLAUDE.md docs/

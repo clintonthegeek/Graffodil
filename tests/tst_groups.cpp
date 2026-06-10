@@ -1,4 +1,5 @@
 #include <QTest>
+#include <QCoreApplication>
 #include "TestHelpers.h"
 #include <graffodil/GraphScene.h>
 #include <graffodil/GroupItem.h>
@@ -158,6 +159,29 @@ private slots:
         QCOMPARE(scene.groupIds().size(), 0);
 
         delete n;
+    }
+
+    void sceneChangeRefreshIsCoalesced() {
+        GraphScene scene;
+        auto *a = new TestNode("a", {0, 0});
+        scene.addNode(a);
+
+        GroupStyle style;
+        style.padding = 0.0;
+        const QString gid = scene.addGroup({"a"}, style);
+        QCoreApplication::processEvents(); // drain pending refreshes
+
+        const QRectF before = scene.groupItem(gid)->bounds();
+        a->setPos(500, 500);
+        // After programmatic setPos, refresh arrives via event loop:
+        QCoreApplication::processEvents();
+        const QRectF after = scene.groupItem(gid)->bounds();
+        QVERIFY(after != before);
+
+        // Synchronous flush for consumers that need it immediately:
+        a->setPos(900, 900);
+        scene.refreshGroupsNow();
+        QVERIFY(scene.groupItem(gid)->bounds() != after);
     }
 };
 

@@ -24,6 +24,8 @@ public:
 private:
     QVector<EdgeData> m_edges;
     int m_normalCount = 0;
+    QRectF m_bounds;
+    void recomputeBounds();
 };
 
 } // namespace Graffodil

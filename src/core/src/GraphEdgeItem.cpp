@@ -12,18 +12,26 @@ namespace Graffodil {
 
 GraphEdgeItem::GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
                              IGraphNode *target, const QString &targetAnchorId,
-                             EdgePathStrategy *strategy)
+                             std::unique_ptr<EdgePathStrategy> strategy)
     : m_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
     , m_source(source)
     , m_target(target)
     , m_sourceAnchorId(sourceAnchorId)
     , m_targetAnchorId(targetAnchorId)
-    , m_strategy(strategy)
+    , m_strategy(std::move(strategy))
 {
     setFlag(ItemIsSelectable);
     // Hovering an edge should signal that it's clickable.
     setCursor(Qt::PointingHandCursor);
     setAcceptHoverEvents(true);
+}
+
+GraphEdgeItem::GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
+                             IGraphNode *target, const QString &targetAnchorId,
+                             EdgePathStrategy *strategy)
+    : GraphEdgeItem(source, sourceAnchorId, target, targetAnchorId,
+                    std::unique_ptr<EdgePathStrategy>(strategy))
+{
 }
 
 GraphEdgeItem::~GraphEdgeItem() = default;
@@ -33,9 +41,14 @@ IGraphNode *GraphEdgeItem::sourceNode() const { return m_source; }
 IGraphNode *GraphEdgeItem::targetNode() const { return m_target; }
 QGraphicsItem *GraphEdgeItem::graphicsItem() { return this; }
 
+void GraphEdgeItem::setPathStrategy(std::unique_ptr<EdgePathStrategy> strategy)
+{
+    m_strategy = std::move(strategy);
+}
+
 void GraphEdgeItem::setPathStrategy(EdgePathStrategy *strategy)
 {
-    m_strategy.reset(strategy);
+    setPathStrategy(std::unique_ptr<EdgePathStrategy>(strategy));
 }
 
 void GraphEdgeItem::setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style)
@@ -135,6 +148,18 @@ void GraphEdgeItem::adjust()
 
     QPainterPath path = m_strategy->computePath(src, tgt, m_waypoints);
     setPath(path);
+
+    m_shapeDirty = true;
+    if (path.isEmpty()) {
+        m_pathLength = 1.0;
+        m_srcPoint = m_tgtPoint = m_srcTangentRef = m_tgtTangentRef = QPointF();
+        return;
+    }
+    m_pathLength = qMax(path.length(), 1.0);
+    m_srcPoint = path.pointAtPercent(0.0);
+    m_tgtPoint = path.pointAtPercent(1.0);
+    m_srcTangentRef = path.pointAtPercent(qMin(0.05, 10.0 / m_pathLength));
+    m_tgtTangentRef = path.pointAtPercent(qMax(0.95, 1.0 - 10.0 / m_pathLength));
 }
 
 QRectF GraphEdgeItem::boundingRect() const
@@ -154,11 +179,15 @@ QPainterPath GraphEdgeItem::shape() const
 {
     if (path().isEmpty())
         return {};
-    QPainterPathStroker stroker;
-    stroker.setWidth(m_hitWidth);
-    stroker.setCapStyle(Qt::RoundCap);
-    stroker.setJoinStyle(Qt::RoundJoin);
-    return stroker.createStroke(path());
+    if (m_shapeDirty) {
+        QPainterPathStroker stroker;
+        stroker.setWidth(m_hitWidth);
+        stroker.setCapStyle(Qt::RoundCap);
+        stroker.setJoinStyle(Qt::RoundJoin);
+        m_shapeCache = stroker.createStroke(path());
+        m_shapeDirty = false;
+    }
+    return m_shapeCache;
 }
 
 void GraphEdgeItem::setHitWidth(qreal width)
@@ -167,6 +196,7 @@ void GraphEdgeItem::setHitWidth(qreal width)
         return;
     prepareGeometryChange();
     m_hitWidth = width;
+    m_shapeDirty = true;
 }
 
 void GraphEdgeItem::paint(QPainter *painter,
@@ -189,16 +219,13 @@ void GraphEdgeItem::paint(QPainter *painter,
     }
 
     const QPainterPath &p = path();
-    const qreal len = qMax(p.length(), 1.0);
-    const QPointF srcPos = p.pointAtPercent(0.0);
-    const QPointF tgtPos = p.pointAtPercent(1.0);
 
     // Selection override wins over the gradient so selected edges remain
     // obviously highlighted; terminus styles always use the solid pen color
     // so the arrowhead reads cleanly against the background.
     QPen strokePen = edgePen;
     if (m_gradient.has_value() && !isSelected()) {
-        QLinearGradient grad(srcPos, tgtPos);
+        QLinearGradient grad(m_srcPoint, m_tgtPoint);
         grad.setColorAt(0.0, m_gradient->first);
         grad.setColorAt(1.0, m_gradient->second);
         strokePen.setBrush(QBrush(grad));
@@ -209,16 +236,12 @@ void GraphEdgeItem::paint(QPainter *painter,
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(p);
 
-    // Draw terminus styles using the path tangent at each endpoint.
-    if (m_sourceTerminus) {
-        QPointF fromDir = p.pointAtPercent(qMin(0.05, 10.0 / len));
-        m_sourceTerminus->draw(painter, srcPos, fromDir, edgePen);
-    }
+    // Draw terminus styles using the cached path tangent at each endpoint.
+    if (m_sourceTerminus)
+        m_sourceTerminus->draw(painter, m_srcPoint, m_srcTangentRef, edgePen);
 
-    if (m_targetTerminus) {
-        QPointF fromDir = p.pointAtPercent(qMax(0.95, 1.0 - 10.0 / len));
-        m_targetTerminus->draw(painter, tgtPos, fromDir, edgePen);
-    }
+    if (m_targetTerminus)
+        m_targetTerminus->draw(painter, m_tgtPoint, m_tgtTangentRef, edgePen);
 }
 
 } // namespace Graffodil

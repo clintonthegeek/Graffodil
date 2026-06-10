@@ -39,10 +39,11 @@ Mirrors Qt's own component packaging. One core library containing the scene fram
 ```
 Graffodil::Core       — interfaces, scene, tools, edge items, path strategies,
                          terminus styles, minimap, anchor highlight, connector
+Graffodil::Spatial    — QuadTree, SpatialGrid (depends: Qt6::Core only)
 Graffodil::Sugiyama   — Sugiyama layered layout engine (depends: Core)
-Graffodil::Force      — ForceAtlas2 + multilevel layout (depends: Core)
+Graffodil::Force      — ForceAtlas2 + multilevel layout (depends: Core, Spatial)
 Graffodil::Circular   — Circular/radial layout (depends: Core)
-Graffodil::Batch      — BatchRenderer, SpatialGrid, QuadTree (depends: Core)
+Graffodil::Batch      — BatchRenderer (depends: Core)
 ```
 
 Consumer CMake:
@@ -118,6 +119,23 @@ public:
 
     // Bridge to QGraphicsItem, same pattern as IGraphNode.
     virtual QGraphicsItem *graphicsItem() = 0;
+
+    // Notification that either endpoint node may have moved or changed
+    // geometry. The scene calls this from adjustEdgesForNode(),
+    // adjustAllEdges(), and applyLayout(). Implementations should recompute
+    // their visual path. Default is a no-op so data-only edges stay valid.
+    virtual void endpointsChanged() {}
+
+    // Routing hints delivered by GraphScene::applyLayout() when a layout
+    // engine produced LayoutResult::edgeWaypoints for this edge's
+    // (sourceId, targetId) pair. Scene coordinates, ordered source→target.
+    // Default ignores them; GraphEdgeItem feeds them to its path strategy.
+    // Known limitation: parallel edges between the same pair share the first
+    // matching waypoint list.
+    virtual void setWaypoints(const QList<QPointF> &waypoints)
+    {
+        Q_UNUSED(waypoints);
+    }
 };
 
 }
@@ -163,7 +181,17 @@ public:
     void removeEdge(const QString &id);
     IGraphEdge *edgeForId(const QString &id) const;
     IGraphEdge *edgeBetween(const QString &sourceId, const QString &targetId) const;
+    IGraphEdge *edgeBetweenUndirected(const QString &nodeId1, const QString &nodeId2) const;
+    QList<IGraphEdge *> connectedEdges(const QString &nodeId) const;
     QList<IGraphEdge *> edges() const;
+
+    // --- Adjacency index ---
+    // Efficient per-node edge lookups via internal QMultiHash index.
+    // connectedEdges(), edgeBetween(), edgeBetweenUndirected(), and adjustEdgesForNode()
+    // are all O(degree) instead of O(total_edges). Index is maintained automatically
+    // on addEdge()/removeEdge(). Note: an edge's source and target nodeIds must remain
+    // stable while the edge is registered; to change endpoints use removeEdge() followed
+    // by re-adding the edge with the new endpoint (no hot-swapping of nodeId references).
 
     // --- Tool dispatch ---
 
@@ -202,13 +230,18 @@ public:
     QSet<QString> groupMembers(const QString &groupId) const;
     GroupItem    *groupItem(const QString &groupId) const;
 
+    // Force an immediate synchronous refresh of all group bounds.
+    // Useful for code that moves nodes programmatically outside the normal
+    // event loop and needs groups to update immediately. Normally groups
+    // auto-refresh once per event-loop turn; this flushes any pending update.
+    void refreshGroupsNow();
+
     // --- Layout ---
 
-    // Applies computed positions to registered nodes.
-    // For edges: if edgeWaypoints are provided and the edge is a
-    // GraphEdgeItem, waypoints are passed to the path strategy.
-    // Groups refresh their bounds synchronously after the layout
-    // is applied.
+    // Applies computed positions to registered nodes. Delivers routing
+    // hints to edges before calling endpointsChanged() so recomputed paths
+    // see the waypoints. Groups refresh their bounds synchronously after
+    // the layout is applied.
     void applyLayout(const LayoutResult &result);
 
 signals:
@@ -261,7 +294,7 @@ class GroupItem : public QGraphicsObject {
 } // namespace Graffodil
 ```
 
-**Tracking:** GraphScene connects to its own `QGraphicsScene::changed` signal once the first group is added. On each emission (which fires for interactive drags, `applyLayout()`, `setPos()`, and any other item invalidation) every registered group recomputes the union of its members' `nodeBoundingRect()` values, pads by `GroupStyle::padding`, and pushes the result to its `GroupItem`. A recursion guard prevents re-entry while a refresh is in flight. `applyLayout()` also performs a synchronous refresh so callers that query `groupItem(id)->bounds()` immediately after the layout see fresh data.
+**Tracking:** GraphScene connects to its own `QGraphicsScene::changed` signal once the first group is added. Group refreshes are coalesced to at most once per event-loop turn — on each emission, a pending refresh is queued and deferred to the next idle moment rather than running immediately. This prevents excessive bounds recalculation when many nodes move in a single interaction. `applyLayout()` also performs a synchronous refresh so callers that query `groupItem(id)->bounds()` immediately after the layout see fresh data. For code that moves nodes programmatically outside the event-loop (e.g., scripted animations), call `refreshGroupsNow()` to force an immediate synchronous update of all group bounds. A recursion guard prevents re-entry while a refresh is in flight.
 
 **Ownership:** GroupItems are owned by the scene — `removeGroup()` and `clearGraph()` delete them. Member ids in the registry are authoritative; resolving them to `IGraphNode*` happens lazily on every refresh, so nodes removed via `removeNode()` drop out of group membership automatically.
 
@@ -350,16 +383,24 @@ class GraphEdgeItem : public QGraphicsPathItem, public IGraphEdge {
 public:
     GraphEdgeItem(IGraphNode *source, Side sourceSide,
                   IGraphNode *target, Side targetSide,
-                  EdgePathStrategy *strategy);
+                  std::unique_ptr<EdgePathStrategy> strategy);
+    // Raw-pointer constructor is deprecated; ownership transfers either way.
+    [[deprecated]] GraphEdgeItem(IGraphNode *source, Side sourceSide,
+                                 IGraphNode *target, Side targetSide,
+                                 EdgePathStrategy *strategy);
 
     // --- IGraphEdge ---
     QString edgeId() const override;
     IGraphNode *sourceNode() const override;
     IGraphNode *targetNode() const override;
     QGraphicsItem *graphicsItem() override;
+    void endpointsChanged() override { adjust(); }
+    void setWaypoints(const QList<QPointF> &waypoints) override;
 
     // --- Configuration ---
-    void setPathStrategy(EdgePathStrategy *strategy);
+    // Takes ownership via unique_ptr (preferred) or raw pointer (deprecated).
+    void setPathStrategy(std::unique_ptr<EdgePathStrategy> strategy);
+    [[deprecated]] void setPathStrategy(EdgePathStrategy *strategy);
     void setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style);
     void setPen(const QPen &pen);      // line style, dash pattern, width, color
     void setHighlighted(bool);
@@ -865,10 +906,11 @@ What stays where after adoption:
 | Component | Location | Consumes |
 |-----------|----------|----------|
 | `IGraphNode`, `IGraphEdge`, `GraphScene`, tools, `GraphEdgeItem`, path strategies, terminus styles, minimap, anchor highlight, connector | **Graffodil::Core** | Qt6::Widgets |
+| `QuadTree`, `SpatialGrid` | **Graffodil::Spatial** | Qt6::Core |
 | `SugiyamaLayout` (spine alignment) | **Graffodil::Sugiyama** | Graffodil::Core |
-| `ForceLayout`, `MultilevelLayout` | **Graffodil::Force** | Graffodil::Core |
+| `ForceLayout`, `MultilevelLayout` | **Graffodil::Force** | Graffodil::Core, Graffodil::Spatial |
 | `CircularLayout` | **Graffodil::Circular** | Graffodil::Core |
-| `BatchRenderer`, `SpatialGrid`, `QuadTree` | **Graffodil::Batch** | Graffodil::Core |
+| `BatchRenderer` | **Graffodil::Batch** | Graffodil::Core |
 | `DependencyGraph` (CPM engine) | **PlanStan `libs/scheduling/`** | unchanged |
 | `GraphNodeItem`, `PlanningColorScheme`, `RelationEditorWidget` | **PlanStan `libs/graph/`** | Graffodil::Core + Sugiyama |
 | `GanttArrowRouter`, `GanttArrowItem` | **PlanStan `libs/gantt/`** | arrowhead math only |

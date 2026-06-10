@@ -5,6 +5,8 @@
 #include <QImage>
 #include <QPainter>
 #include "TestHelpers.h"
+#include "BatchNodeItem.h"
+#include "BatchEdgeItem.h"
 
 using namespace Graffodil;
 using namespace Graffodil::Test;
@@ -85,6 +87,34 @@ private slots:
         scene.addNode(n3);
         renderer.synchronize();
         QVERIFY(renderer.isBatchMode());
+    }
+
+    void tightNodeBounds()
+    {
+        Graffodil::BatchNodeItem item;
+        QVector<Graffodil::BatchNodeItem::NodeData> nodes(2);
+        nodes[0].position = QPointF(0, 0);
+        nodes[0].radius = 10;
+        nodes[1].position = QPointF(15000, 300);   // beyond the old ±10000 rect
+        nodes[1].radius = 10;
+        item.setNodes(nodes);
+
+        const QRectF b = item.boundingRect();
+        QVERIFY(b.contains(QPointF(0, 0)));
+        QVERIFY(b.contains(QPointF(15000, 300)));   // old code clipped this node
+        QVERIFY(b.width() < 16000.0);               // and was 20000 wide regardless
+    }
+
+    void tightEdgeBounds()
+    {
+        Graffodil::BatchEdgeItem item;
+        QVector<Graffodil::BatchEdgeItem::EdgeData> edges(1);
+        edges[0].line = QLineF(QPointF(0, 0), QPointF(12000, 50));
+        item.setEdges(edges);
+
+        const QRectF b = item.boundingRect();
+        QVERIFY(b.contains(QPointF(12000, 50)));
+        QVERIFY(b.height() < 200.0);   // a near-horizontal line, not a 20000px band
     }
 
     void batchCompositesCachedPixmap() {

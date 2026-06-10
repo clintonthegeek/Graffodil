@@ -97,6 +97,125 @@ private slots:
         ForceLayout layout;
         QVERIFY(layout.isIterative());
     }
+
+    void positionsStayFiniteAndBounded()
+    {
+        using namespace Graffodil;
+        // Star graph — high-swinging scenario that exercises the speed cap.
+        QList<Test::TestNode *> nodeStore;
+        QList<IGraphNode *> nodes;
+        QList<IGraphEdge *> edges;
+        QList<Test::TestEdge *> edgeStore;
+        auto *hub = new Test::TestNode("hub");
+        nodeStore.append(hub);
+        nodes.append(hub);
+        for (int i = 0; i < 30; ++i) {
+            auto *n = new Test::TestNode(QString("leaf%1").arg(i));
+            nodeStore.append(n);
+            nodes.append(n);
+            auto *e = new Test::TestEdge(QString("e%1").arg(i), hub, n);
+            edgeStore.append(e);
+            edges.append(e);
+        }
+
+        ForceLayout layout;
+        layout.setNodes(nodes);
+        layout.setEdges(edges);
+        for (int i = 0; i < 300 && layout.tick(); ++i) {}
+
+        const LayoutResult r = layout.currentPositions();
+        for (auto it = r.nodePositions.constBegin();
+             it != r.nodePositions.constEnd(); ++it) {
+            QVERIFY(std::isfinite(it.value().x()));
+            QVERIFY(std::isfinite(it.value().y()));
+            QVERIFY(qAbs(it.value().x()) < 1.0e6);
+            QVERIFY(qAbs(it.value().y()) < 1.0e6);
+        }
+
+        qDeleteAll(edgeStore);
+        qDeleteAll(nodeStore);
+    }
+
+    void tickIsDeterministicAcrossInstances()
+    {
+        using namespace Graffodil;
+        auto build = [](QList<Test::TestNode *> &nodeStore,
+                        QList<Test::TestEdge *> &edgeStore,
+                        QList<IGraphNode *> &nodes, QList<IGraphEdge *> &edges) {
+            for (int i = 0; i < 12; ++i) {
+                auto *n = new Test::TestNode(QString("n%1").arg(i));
+                nodeStore.append(n);
+                nodes.append(n);
+            }
+            for (int i = 0; i < 12; ++i) {
+                auto *e = new Test::TestEdge(QString("e%1").arg(i),
+                                             nodes[i], nodes[(i + 1) % 12]);
+                edgeStore.append(e);
+                edges.append(e);
+            }
+            auto *chord = new Test::TestEdge("chord", nodes[0], nodes[6]);
+            edgeStore.append(chord);
+            edges.append(chord);
+        };
+
+        QList<Test::TestNode *> ns1, ns2;
+        QList<Test::TestEdge *> es1, es2;
+        QList<IGraphNode *> n1, n2;
+        QList<IGraphEdge *> e1, e2;
+        build(ns1, es1, n1, e1);
+        build(ns2, es2, n2, e2);
+
+        ForceLayout l1, l2;
+        l1.setNodes(n1); l1.setEdges(e1);
+        l2.setNodes(n2); l2.setEdges(e2);
+        for (int i = 0; i < 50; ++i) { l1.tick(); l2.tick(); }
+
+        const auto p1 = l1.currentPositions().nodePositions;
+        const auto p2 = l2.currentPositions().nodePositions;
+        QCOMPARE(p1.size(), p2.size());
+        for (auto it = p1.constBegin(); it != p1.constEnd(); ++it)
+            QCOMPARE(it.value(), p2.value(it.key()));
+
+        qDeleteAll(es1); qDeleteAll(es2); qDeleteAll(ns1); qDeleteAll(ns2);
+    }
+
+    void energyConvergenceIsPlateauNotDecrease()
+    {
+        using namespace Graffodil;
+        // A 20-node chain takes well over 15 ticks to physically settle from
+        // BFS initial placement. The pre-fix heuristic stops after ~10 ticks of
+        // monotonically decreasing energy — long before the layout has settled.
+        QList<Test::TestNode *> nodeStore;
+        QList<IGraphNode *> nodes;
+        QList<IGraphEdge *> edges;
+        QList<Test::TestEdge *> edgeStore;
+        for (int i = 0; i < 20; ++i) {
+            auto *n = new Test::TestNode(QString("n%1").arg(i));
+            nodeStore.append(n);
+            nodes.append(n);
+        }
+        for (int i = 0; i + 1 < 20; ++i) {
+            auto *e = new Test::TestEdge(QString("e%1").arg(i),
+                                         nodes[i], nodes[i + 1]);
+            edgeStore.append(e);
+            edges.append(e);
+        }
+
+        ForceLayout layout;
+        layout.setNodes(nodes);
+        layout.setEdges(edges);
+
+        int ticks = 0;
+        while (layout.tick() && ticks < 5000)
+            ++ticks;
+
+        QVERIFY(layout.isConverged());
+        QVERIFY2(ticks > 15,
+                 "simulation stopped while energy was still actively decreasing");
+
+        qDeleteAll(edgeStore);
+        qDeleteAll(nodeStore);
+    }
 };
 
 QTEST_MAIN(TestForceLayout)

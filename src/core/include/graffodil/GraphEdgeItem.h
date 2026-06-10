@@ -26,7 +26,13 @@ class GraphEdgeItem : public QGraphicsPathItem, public IGraphEdge {
 public:
     GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
                   IGraphNode *target, const QString &targetAnchorId,
+                  std::unique_ptr<EdgePathStrategy> strategy);
+
+    [[deprecated("pass std::unique_ptr<EdgePathStrategy>; ownership transfers either way")]]
+    GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
+                  IGraphNode *target, const QString &targetAnchorId,
                   EdgePathStrategy *strategy);
+
     ~GraphEdgeItem() override;
 
     // --- IGraphEdge ---
@@ -34,13 +40,16 @@ public:
     IGraphNode *sourceNode() const override;
     IGraphNode *targetNode() const override;
     QGraphicsItem *graphicsItem() override;
+    void endpointsChanged() override { adjust(); }
 
     // --- Configuration ---
+    void setPathStrategy(std::unique_ptr<EdgePathStrategy> strategy);
+    [[deprecated("pass std::unique_ptr<EdgePathStrategy>; ownership transfers either way")]]
     void setPathStrategy(EdgePathStrategy *strategy);
     void setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style);
     void setPen(const QPen &pen);
     void setHighlighted(bool highlighted);
-    void setWaypoints(const QList<QPointF> &waypoints);
+    void setWaypoints(const QList<QPointF> &waypoints) override;
 
     /// Recompute path from current node anchor positions.
     void adjust();
@@ -93,6 +102,13 @@ private:
     qreal m_hitWidth = 8.0;
     bool m_highlighted = false;
     std::optional<std::pair<QColor, QColor>> m_gradient;
+
+    // Caches computed in adjust() — invalidated whenever the path changes.
+    qreal m_pathLength = 1.0;
+    QPointF m_srcPoint, m_tgtPoint;
+    QPointF m_srcTangentRef, m_tgtTangentRef;
+    mutable QPainterPath m_shapeCache;
+    mutable bool m_shapeDirty = true;
 };
 
 } // namespace Graffodil

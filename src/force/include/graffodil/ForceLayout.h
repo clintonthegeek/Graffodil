@@ -49,6 +49,7 @@ private:
     QVector<EdgeData> m_edges;
     QVector<bool> m_pinned;
     QHash<QString, int> m_degree;
+    QVector<double> m_nodeMass;  // degree + 1, by node index — tick() hot path
 
     // Simulation state
     QVector<QPointF> m_displacements;
@@ -58,7 +59,7 @@ private:
     double m_prevEnergy = 0.0;
     int m_iteration = 0;
     int m_stableCount = 0;
-    int m_energyDecreaseCount = 0;
+    int m_energyStableCount = 0;
     bool m_converged = false;
     bool m_initialized = false;
 

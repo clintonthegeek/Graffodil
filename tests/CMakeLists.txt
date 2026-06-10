@@ -40,11 +40,11 @@ target_include_directories(tst_sugiyama PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_sugiyama COMMAND tst_sugiyama)
 
 add_executable(tst_spatialgrid tst_spatialgrid.cpp)
-target_link_libraries(tst_spatialgrid PRIVATE Graffodil::Batch Qt6::Test)
+target_link_libraries(tst_spatialgrid PRIVATE Graffodil::Spatial Qt6::Test)
 add_test(NAME tst_spatialgrid COMMAND tst_spatialgrid)
 
 add_executable(tst_quadtree tst_quadtree.cpp)
-target_link_libraries(tst_quadtree PRIVATE Graffodil::Batch Qt6::Test)
+target_link_libraries(tst_quadtree PRIVATE Graffodil::Spatial Qt6::Test)
 add_test(NAME tst_quadtree COMMAND tst_quadtree)
 
 add_executable(tst_forcelayout tst_forcelayout.cpp)
@@ -54,7 +54,8 @@ add_test(NAME tst_forcelayout COMMAND tst_forcelayout)
 
 add_executable(tst_batchrenderer tst_batchrenderer.cpp)
 target_link_libraries(tst_batchrenderer PRIVATE Graffodil::Batch Qt6::Test)
-target_include_directories(tst_batchrenderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(tst_batchrenderer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/src/batch/src)
 add_test(NAME tst_batchrenderer COMMAND tst_batchrenderer)
 
 add_executable(tst_integration tst_integration.cpp)
@@ -62,3 +63,7 @@ target_link_libraries(tst_integration PRIVATE
     Graffodil::Core Graffodil::Circular Qt6::Test)
 target_include_directories(tst_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_integration COMMAND tst_integration)
+
+add_executable(tst_minimap tst_minimap.cpp)
+target_link_libraries(tst_minimap PRIVATE Graffodil::Core Qt6::Test)
+add_test(NAME tst_minimap COMMAND tst_minimap)
