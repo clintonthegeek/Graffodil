@@ -102,7 +102,7 @@ DemoWindow::DemoWindow(QWidget *parent)
                          IGraphNode *target, const QString &targetAnchorId) {
         auto *edge = new GraphEdgeItem(source, sourceAnchorId,
                                         target, targetAnchorId,
-                                        new BezierPathStrategy);
+                                        std::make_unique<BezierPathStrategy>());
         edge->setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
         m_scene->addEdge(edge);
         edge->adjust();
@@ -390,7 +390,7 @@ void DemoWindow::onTemplateChanged(int index)
 static GraphEdgeItem *makeEdge(IGraphNode *src, const QString &srcId,
                                 IGraphNode *tgt, const QString &tgtId)
 {
-    auto *e = new GraphEdgeItem(src, srcId, tgt, tgtId, new BezierPathStrategy);
+    auto *e = new GraphEdgeItem(src, srcId, tgt, tgtId, std::make_unique<BezierPathStrategy>());
     e->setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
     return e;
 }
@@ -658,14 +658,14 @@ void DemoWindow::onEdgeCreated()
     updateEdgeAppearance();
 }
 
-static EdgePathStrategy *createStrategy(int index)
+static std::unique_ptr<EdgePathStrategy> createStrategy(int index)
 {
     switch (index) {
-    case 0: return new DirectPathStrategy;
-    case 1: return new BezierPathStrategy;
-    case 2: return new OrthogonalPathStrategy;
-    case 3: return new PolylinePathStrategy;
-    default: return new BezierPathStrategy;
+    case 0: return std::make_unique<DirectPathStrategy>();
+    case 1: return std::make_unique<BezierPathStrategy>();
+    case 2: return std::make_unique<OrthogonalPathStrategy>();
+    case 3: return std::make_unique<PolylinePathStrategy>();
+    default: return std::make_unique<BezierPathStrategy>();
     }
 }
 

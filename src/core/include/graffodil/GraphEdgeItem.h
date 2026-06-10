@@ -26,7 +26,13 @@ class GraphEdgeItem : public QGraphicsPathItem, public IGraphEdge {
 public:
     GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
                   IGraphNode *target, const QString &targetAnchorId,
+                  std::unique_ptr<EdgePathStrategy> strategy);
+
+    [[deprecated("pass std::unique_ptr<EdgePathStrategy>; ownership transfers either way")]]
+    GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
+                  IGraphNode *target, const QString &targetAnchorId,
                   EdgePathStrategy *strategy);
+
     ~GraphEdgeItem() override;
 
     // --- IGraphEdge ---
@@ -37,6 +43,8 @@ public:
     void endpointsChanged() override { adjust(); }
 
     // --- Configuration ---
+    void setPathStrategy(std::unique_ptr<EdgePathStrategy> strategy);
+    [[deprecated("pass std::unique_ptr<EdgePathStrategy>; ownership transfers either way")]]
     void setPathStrategy(EdgePathStrategy *strategy);
     void setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style);
     void setPen(const QPen &pen);

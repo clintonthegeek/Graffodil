@@ -33,7 +33,7 @@ private slots:
         for (int i = 0; i < 4; ++i) {
             auto *edge = new GraphEdgeItem(
                 nodes[i], AnchorIds::Right, nodes[i + 1], AnchorIds::Left,
-                new BezierPathStrategy);
+                std::make_unique<BezierPathStrategy>());
             edge->setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
             scene.addEdge(edge);
         }

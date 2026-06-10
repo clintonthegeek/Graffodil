@@ -12,18 +12,26 @@ namespace Graffodil {
 
 GraphEdgeItem::GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
                              IGraphNode *target, const QString &targetAnchorId,
-                             EdgePathStrategy *strategy)
+                             std::unique_ptr<EdgePathStrategy> strategy)
     : m_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
     , m_source(source)
     , m_target(target)
     , m_sourceAnchorId(sourceAnchorId)
     , m_targetAnchorId(targetAnchorId)
-    , m_strategy(strategy)
+    , m_strategy(std::move(strategy))
 {
     setFlag(ItemIsSelectable);
     // Hovering an edge should signal that it's clickable.
     setCursor(Qt::PointingHandCursor);
     setAcceptHoverEvents(true);
+}
+
+GraphEdgeItem::GraphEdgeItem(IGraphNode *source, const QString &sourceAnchorId,
+                             IGraphNode *target, const QString &targetAnchorId,
+                             EdgePathStrategy *strategy)
+    : GraphEdgeItem(source, sourceAnchorId, target, targetAnchorId,
+                    std::unique_ptr<EdgePathStrategy>(strategy))
+{
 }
 
 GraphEdgeItem::~GraphEdgeItem() = default;
@@ -33,9 +41,14 @@ IGraphNode *GraphEdgeItem::sourceNode() const { return m_source; }
 IGraphNode *GraphEdgeItem::targetNode() const { return m_target; }
 QGraphicsItem *GraphEdgeItem::graphicsItem() { return this; }
 
+void GraphEdgeItem::setPathStrategy(std::unique_ptr<EdgePathStrategy> strategy)
+{
+    m_strategy = std::move(strategy);
+}
+
 void GraphEdgeItem::setPathStrategy(EdgePathStrategy *strategy)
 {
-    m_strategy.reset(strategy);
+    setPathStrategy(std::unique_ptr<EdgePathStrategy>(strategy));
 }
 
 void GraphEdgeItem::setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style)

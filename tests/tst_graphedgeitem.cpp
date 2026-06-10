@@ -14,8 +14,8 @@ class TestGraphEdgeItem : public QObject {
 private slots:
     void edgeImplementsInterface() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
-        auto *strategy = new DirectPathStrategy;
-        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left, strategy);
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left,
+                           std::make_unique<DirectPathStrategy>());
 
         QVERIFY(!edge.edgeId().isEmpty());
         QCOMPARE(edge.sourceNode(), static_cast<IGraphNode *>(&src));
@@ -25,8 +25,8 @@ private slots:
 
     void adjustUpdatesPath() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
-        auto *strategy = new DirectPathStrategy;
-        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left, strategy);
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left,
+                           std::make_unique<DirectPathStrategy>());
 
         edge.adjust();
         QVERIFY(!edge.path().isEmpty());
@@ -41,13 +41,12 @@ private slots:
 
     void setPathStrategyChangesShape() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 100});
-        auto *direct = new DirectPathStrategy;
-        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left, direct);
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left,
+                           std::make_unique<DirectPathStrategy>());
         edge.adjust();
         int directElements = edge.path().elementCount();
 
-        auto *bezier = new BezierPathStrategy;
-        edge.setPathStrategy(bezier);
+        edge.setPathStrategy(std::make_unique<BezierPathStrategy>());
         edge.adjust();
         int bezierElements = edge.path().elementCount();
 
@@ -56,8 +55,8 @@ private slots:
 
     void terminusOwnership() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
-        auto *strategy = new DirectPathStrategy;
-        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left, strategy);
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left,
+                           std::make_unique<DirectPathStrategy>());
 
         edge.setTerminus(ArrowEnd::Target, std::make_unique<TriangleTerminus>());
         edge.setTerminus(ArrowEnd::Source, std::make_unique<NoTerminus>());
@@ -72,8 +71,8 @@ private slots:
         scene.addNode(src);
         scene.addNode(tgt);
 
-        auto *strategy = new DirectPathStrategy;
-        auto *edge = new GraphEdgeItem(src, AnchorIds::Right, tgt, AnchorIds::Left, strategy);
+        auto *edge = new GraphEdgeItem(src, AnchorIds::Right, tgt, AnchorIds::Left,
+                                       std::make_unique<DirectPathStrategy>());
         scene.addEdge(edge);
 
         QCOMPARE(scene.edges().size(), 1);

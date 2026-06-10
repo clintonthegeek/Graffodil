@@ -187,7 +187,7 @@ private slots:
         n2.setPos(300, 0);
         auto *edge = new GraphEdgeItem(&n1, "audio_out_r",
                                         &n2, "sidechain_in",
-                                        new DirectPathStrategy);
+                                        std::make_unique<DirectPathStrategy>());
         edge->adjust();
         QVERIFY(!edge->path().isEmpty());
         const QPointF start = edge->path().elementAt(0);
@@ -229,7 +229,7 @@ private slots:
         TestNode b("b", {300, 200});
         auto *edge = new GraphEdgeItem(&a, QString(),   // swivel source
                                         &b, QString(),  // swivel target
-                                        new DirectPathStrategy);
+                                        std::make_unique<DirectPathStrategy>());
         edge->adjust();
         QVERIFY(!edge->path().isEmpty());
     }
@@ -308,7 +308,7 @@ private slots:
         scene.addNode(a);
         scene.addNode(b);
         auto *edge = new GraphEdgeItem(a, QString(), b, QString(),
-                                       new PolylinePathStrategy());
+                                       std::make_unique<PolylinePathStrategy>());
         scene.addEdge(edge);
 
         LayoutResult result;
