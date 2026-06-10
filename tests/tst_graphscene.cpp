@@ -1,10 +1,22 @@
 #include <QTest>
 #include <QSignalSpy>
+#include <QCoreApplication>
+#include <QKeyEvent>
 #include "TestHelpers.h"
 #include <graffodil/GraphScene.h>
+#include <graffodil/GraphTool.h>
 #include <graffodil/Anchors.h>
 #include <graffodil/GraphEdgeItem.h>
 #include <graffodil/EdgePathStrategy.h>
+
+class KeyRecordingTool : public Graffodil::GraphTool {
+public:
+    void mousePressEvent(QGraphicsSceneMouseEvent *) override {}
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *) override {}
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *) override {}
+    void keyReleaseEvent(QKeyEvent *) override { releasedCount++; }
+    int releasedCount = 0;
+};
 
 // A node that publishes arbitrary named anchors (like DAW plugin ports),
 // plus overrides anchorToward() for swivel behavior on a subset.
@@ -245,6 +257,19 @@ private slots:
 
         scene.selectNode("unknown");  // no-op
         QCOMPARE(scene.selectedNodeId(), QString("alpha"));
+    }
+
+    void keyReleaseReachesActiveTool()
+    {
+        Graffodil::GraphScene scene;
+        KeyRecordingTool tool;
+        scene.setActiveTool(&tool);
+
+        QKeyEvent ev(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &ev);
+
+        QCOMPARE(tool.releasedCount, 1);
+        scene.setActiveTool(nullptr);  // detach before tool goes out of scope
     }
 };
 

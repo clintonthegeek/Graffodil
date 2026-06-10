@@ -458,4 +458,12 @@ void GraphScene::keyPressEvent(QKeyEvent *e)
         QGraphicsScene::keyPressEvent(e);
 }
 
+void GraphScene::keyReleaseEvent(QKeyEvent *e)
+{
+    if (m_activeTool)
+        m_activeTool->keyReleaseEvent(e);
+    else
+        QGraphicsScene::keyReleaseEvent(e);
+}
+
 } // namespace Graffodil

@@ -143,6 +143,7 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
     void wheelEvent(QGraphicsSceneWheelEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
+    void keyReleaseEvent(QKeyEvent *e) override;
 
 private slots:
     void refreshGroupsFromSceneChange(const QList<QRectF> &region);
