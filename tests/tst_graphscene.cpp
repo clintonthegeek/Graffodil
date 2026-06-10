@@ -322,6 +322,51 @@ private slots:
         // without delivery it is a straight line with y extent ~0.
         QVERIFY(edge->path().boundingRect().bottom() >= 149.0);
     }
+
+    void adjacencyIndexSurvivesReverse()
+    {
+        using namespace Graffodil;
+        GraphScene scene;
+        auto *a = new Test::TestNode("a", {0, 0});
+        auto *b = new Test::TestNode("b", {200, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *edge = new GraphEdgeItem(a, QString(), b, QString(),
+                                       std::make_unique<DirectPathStrategy>());
+        scene.addEdge(edge);
+        const QString id = edge->edgeId();
+
+        edge->reverse();                 // endpoints swap underneath the registry
+        scene.removeEdge(id);            // must fully clean up the index
+
+        QVERIFY(scene.connectedEdges("a").isEmpty());
+        QVERIFY(scene.connectedEdges("b").isEmpty());
+        QVERIFY(scene.edgeForId(id) == nullptr);
+        delete edge;
+    }
+
+    void multiEdgesAndSelfLoopIndexedOnce()
+    {
+        using namespace Graffodil;
+        GraphScene scene;
+        auto *a = new Test::TestNode("a", {0, 0});
+        auto *b = new Test::TestNode("b", {200, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *e1   = new Test::TestEdge("e1",   a, b);
+        auto *e2   = new Test::TestEdge("e2",   a, b);   // parallel edge
+        auto *loop = new Test::TestEdge("loop", a, a);   // self-loop
+        scene.addEdge(e1);
+        scene.addEdge(e2);
+        scene.addEdge(loop);
+
+        QCOMPARE(scene.connectedEdges("a").size(), 3);  // e1, e2, loop — loop once
+        QCOMPARE(scene.connectedEdges("b").size(), 2);
+
+        scene.removeNode("b");                           // cascades e1+e2
+        QCOMPARE(scene.connectedEdges("a").size(), 1);   // just the loop
+        QCOMPARE(scene.edges().size(), 1);
+    }
 };
 
 QTEST_MAIN(TestInterfaces)

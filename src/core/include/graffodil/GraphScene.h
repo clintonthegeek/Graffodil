@@ -4,6 +4,7 @@
 #include <graffodil/Types.h>
 #include <QGraphicsScene>
 #include <QHash>
+#include <QMultiHash>
 #include <QSet>
 #include <QStringList>
 
@@ -155,6 +156,9 @@ private:
 
     QHash<QString, IGraphNode *> m_nodes;
     QHash<QString, IGraphEdge *> m_edges;
+    /// nodeId -> edges touching that node (both endpoints). An edge with
+    /// distinct endpoints appears under two keys; a self-loop under one key.
+    QMultiHash<QString, IGraphEdge *> m_edgesByNode;
     GraphTool *m_activeTool = nullptr;
     bool m_edgesAboveNodes = false;
 

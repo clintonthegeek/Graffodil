@@ -35,10 +35,10 @@ void GraphScene::removeNode(const QString &id)
     // node, and any subsequent access (including paint-time bounding-rect
     // queries) would crash.
     QList<QString> connectedIds;
-    for (auto *edge : m_edges) {
-        if (edge->sourceNode() == node || edge->targetNode() == node)
-            connectedIds.append(edge->edgeId());
-    }
+    const QList<IGraphEdge *> touching = m_edgesByNode.values(id);
+    connectedIds.reserve(touching.size());
+    for (auto *edge : touching)
+        connectedIds.append(edge->edgeId());
     for (const auto &eid : connectedIds)
         removeEdge(eid);
 
@@ -60,13 +60,7 @@ void GraphScene::removeNode(const QString &id)
 
 QList<IGraphEdge *> GraphScene::connectedEdges(const QString &nodeId) const
 {
-    QList<IGraphEdge *> result;
-    for (auto *edge : m_edges) {
-        if (edge->sourceNode()->nodeId() == nodeId
-            || edge->targetNode()->nodeId() == nodeId)
-            result.append(edge);
-    }
-    return result;
+    return m_edgesByNode.values(nodeId);
 }
 
 IGraphNode *GraphScene::nodeForId(const QString &id) const
@@ -84,6 +78,9 @@ void GraphScene::addEdge(IGraphEdge *edge)
     if (!edge || m_edges.contains(edge->edgeId()))
         return;
     m_edges.insert(edge->edgeId(), edge);
+    m_edgesByNode.insert(edge->sourceNodeId(), edge);
+    if (edge->targetNodeId() != edge->sourceNodeId())
+        m_edgesByNode.insert(edge->targetNodeId(), edge);
     QGraphicsItem *gi = edge->graphicsItem();
     if (gi->zValue() == 0.0)
         gi->setZValue(m_edgesAboveNodes ? DefaultNodeZ : DefaultEdgeZ);
@@ -122,6 +119,10 @@ void GraphScene::removeEdge(const QString &id)
     if (it == m_edges.end())
         return;
     IGraphEdge *edge = it.value();
+    // Remove from adjacency index before erasing — covers both current
+    // endpoints regardless of any prior reverse() call.
+    m_edgesByNode.remove(edge->sourceNodeId(), edge);
+    m_edgesByNode.remove(edge->targetNodeId(), edge);
     removeItem(edge->graphicsItem());
     m_edges.erase(it);
     emit edgeRemoved(id);
@@ -134,20 +135,22 @@ IGraphEdge *GraphScene::edgeForId(const QString &id) const
 
 IGraphEdge *GraphScene::edgeBetween(const QString &sourceId, const QString &targetId) const
 {
-    for (auto *edge : m_edges) {
-        if (edge->sourceNode()->nodeId() == sourceId
-            && edge->targetNode()->nodeId() == targetId) {
+    for (auto it = m_edgesByNode.constFind(sourceId);
+         it != m_edgesByNode.constEnd() && it.key() == sourceId; ++it) {
+        IGraphEdge *edge = it.value();
+        if (edge->sourceNodeId() == sourceId && edge->targetNodeId() == targetId)
             return edge;
-        }
     }
     return nullptr;
 }
 
 IGraphEdge *GraphScene::edgeBetweenUndirected(const QString &a, const QString &b) const
 {
-    for (auto *edge : m_edges) {
-        const QString &s = edge->sourceNode()->nodeId();
-        const QString &t = edge->targetNode()->nodeId();
+    for (auto it = m_edgesByNode.constFind(a);
+         it != m_edgesByNode.constEnd() && it.key() == a; ++it) {
+        IGraphEdge *edge = it.value();
+        const QString s = edge->sourceNodeId();
+        const QString t = edge->targetNodeId();
         if ((s == a && t == b) || (s == b && t == a))
             return edge;
     }
@@ -181,6 +184,7 @@ GraphScene::ClearResult GraphScene::clearGraph()
         emit edgeRemoved(edge->edgeId());
     }
     m_edges.clear();
+    m_edgesByNode.clear();
 
     for (auto *node : result.nodes) {
         removeItem(node->graphicsItem());
@@ -390,12 +394,9 @@ void GraphScene::applyLayout(const LayoutResult &result)
 
 void GraphScene::adjustEdgesForNode(const QString &nodeId)
 {
-    for (auto *edge : m_edges) {
-        if (edge->sourceNode()->nodeId() == nodeId
-            || edge->targetNode()->nodeId() == nodeId) {
-            edge->endpointsChanged();
-        }
-    }
+    for (auto it = m_edgesByNode.constFind(nodeId);
+         it != m_edgesByNode.constEnd() && it.key() == nodeId; ++it)
+        it.value()->endpointsChanged();
 }
 
 void GraphScene::adjustAllEdges()
