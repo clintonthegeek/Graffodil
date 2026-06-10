@@ -430,10 +430,14 @@ bool ForceLayout::tick()
     }
 
     double tolerance = 1.0;
+    const double previousSpeed = m_globalSpeed;
     if (globalSwinging > EPSILON)
         m_globalSpeed = tolerance * globalTraction / globalSwinging;
 
-    m_globalSpeed = std::min(m_globalSpeed, m_globalSpeed * 1.5);
+    // ForceAtlas2 rule: cap growth at 1.5x the previous iteration's speed.
+    // (The old expression min(x, x*1.5) compared the new speed to itself
+    // and was a no-op.)
+    m_globalSpeed = std::min(m_globalSpeed, previousSpeed * 1.5);
     m_globalSpeed = std::max(m_globalSpeed, EPSILON);
 
     // 7. Apply displacement with per-node speed

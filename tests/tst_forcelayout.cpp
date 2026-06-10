@@ -98,6 +98,44 @@ private slots:
         QVERIFY(layout.isIterative());
     }
 
+    void positionsStayFiniteAndBounded()
+    {
+        using namespace Graffodil;
+        // Star graph — high-swinging scenario that exercises the speed cap.
+        QList<Test::TestNode *> nodeStore;
+        QList<IGraphNode *> nodes;
+        QList<IGraphEdge *> edges;
+        QList<Test::TestEdge *> edgeStore;
+        auto *hub = new Test::TestNode("hub");
+        nodeStore.append(hub);
+        nodes.append(hub);
+        for (int i = 0; i < 30; ++i) {
+            auto *n = new Test::TestNode(QString("leaf%1").arg(i));
+            nodeStore.append(n);
+            nodes.append(n);
+            auto *e = new Test::TestEdge(QString("e%1").arg(i), hub, n);
+            edgeStore.append(e);
+            edges.append(e);
+        }
+
+        ForceLayout layout;
+        layout.setNodes(nodes);
+        layout.setEdges(edges);
+        for (int i = 0; i < 300 && layout.tick(); ++i) {}
+
+        const LayoutResult r = layout.currentPositions();
+        for (auto it = r.nodePositions.constBegin();
+             it != r.nodePositions.constEnd(); ++it) {
+            QVERIFY(std::isfinite(it.value().x()));
+            QVERIFY(std::isfinite(it.value().y()));
+            QVERIFY(qAbs(it.value().x()) < 1.0e6);
+            QVERIFY(qAbs(it.value().y()) < 1.0e6);
+        }
+
+        qDeleteAll(edgeStore);
+        qDeleteAll(nodeStore);
+    }
+
     void energyConvergenceIsPlateauNotDecrease()
     {
         using namespace Graffodil;
