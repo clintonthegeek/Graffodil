@@ -121,6 +121,12 @@ public:
     /// remains with the scene. Returns nullptr for unknown id.
     GroupItem *groupItem(const QString &groupId) const;
 
+    /// Synchronously recompute all group bounds from current member positions.
+    /// Normally unnecessary — refresh is coalesced automatically once per
+    /// event-loop turn — but useful right after programmatic setPos() when
+    /// bounds are queried before returning to the event loop.
+    void refreshGroupsNow();
+
     // --- Layout ---
     void applyLayout(const LayoutResult &result);
 
@@ -166,6 +172,7 @@ private:
     QHash<QString, QSet<QString>>  m_groupMembers;
     bool m_groupsChangeConnected = false;
     bool m_refreshingGroups = false;
+    bool m_groupRefreshQueued = false;
 };
 
 } // namespace Graffodil

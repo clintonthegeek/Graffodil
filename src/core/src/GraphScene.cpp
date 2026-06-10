@@ -200,6 +200,12 @@ GraphScene::ClearResult GraphScene::clearGraph()
     m_groups.clear();
     m_groupMembers.clear();
 
+    if (m_groupsChangeConnected) {
+        disconnect(this, &QGraphicsScene::changed,
+                   this, &GraphScene::refreshGroupsFromSceneChange);
+        m_groupsChangeConnected = false;
+    }
+
     return result;
 }
 
@@ -316,6 +322,12 @@ void GraphScene::removeGroup(const QString &groupId)
     delete item; // scene owns GroupItems
     m_groups.erase(it);
     m_groupMembers.remove(groupId);
+
+    if (m_groups.isEmpty() && m_groupsChangeConnected) {
+        disconnect(this, &QGraphicsScene::changed,
+                   this, &GraphScene::refreshGroupsFromSceneChange);
+        m_groupsChangeConnected = false;
+    }
 }
 
 QStringList GraphScene::groupIds() const
@@ -333,11 +345,23 @@ GroupItem *GraphScene::groupItem(const QString &groupId) const
     return m_groups.value(groupId, nullptr);
 }
 
+void GraphScene::refreshGroupsNow()
+{
+    refreshGroups();
+}
+
 void GraphScene::refreshGroupsFromSceneChange(const QList<QRectF> &)
 {
-    if (m_refreshingGroups)
-        return; // changed() re-emits while we repaint; guard against recursion
-    refreshGroups();
+    // changed() fires on every item invalidation (hover, selection, repaints)
+    // — far more often than members actually move. Coalesce to at most one
+    // geometric refresh per event-loop turn.
+    if (m_refreshingGroups || m_groupRefreshQueued || m_groups.isEmpty())
+        return;
+    m_groupRefreshQueued = true;
+    QMetaObject::invokeMethod(this, [this] {
+        m_groupRefreshQueued = false;
+        refreshGroups();
+    }, Qt::QueuedConnection);
 }
 
 void GraphScene::refreshGroups()
