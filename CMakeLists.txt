@@ -15,7 +15,14 @@ add_subdirectory(src/force)
 add_subdirectory(src/circular)
 add_subdirectory(src/batch)
 
-add_subdirectory(demo)
+option(GRAFFODIL_BUILD_DEMO  "Build the demo app"   ${PROJECT_IS_TOP_LEVEL})
+option(GRAFFODIL_BUILD_TESTS "Build the test suite" ${PROJECT_IS_TOP_LEVEL})
 
-enable_testing()
-add_subdirectory(tests)
+if(GRAFFODIL_BUILD_DEMO)
+    add_subdirectory(demo)
+endif()
+
+if(GRAFFODIL_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
