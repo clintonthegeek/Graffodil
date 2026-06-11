@@ -72,3 +72,8 @@ add_executable(tst_edgelabels tst_edgelabels.cpp)
 target_link_libraries(tst_edgelabels PRIVATE Graffodil::Core Qt6::Test)
 target_include_directories(tst_edgelabels PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_edgelabels COMMAND tst_edgelabels)
+
+add_executable(tst_dashoffset tst_dashoffset.cpp)
+target_link_libraries(tst_dashoffset PRIVATE Graffodil::Core Qt6::Test)
+target_include_directories(tst_dashoffset PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME tst_dashoffset COMMAND tst_dashoffset)

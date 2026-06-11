@@ -57,6 +57,10 @@ public:
     void setLabelStyle(const EdgeLabelStyle &style);
     EdgeLabelStyle labelStyle() const { return m_labelStyle; }
 
+    // --- Dash phase (consumer-driven marching animation) ---
+    void setDashOffset(qreal offset);
+    qreal dashOffset() const { return m_dashOffset; }
+
     /// Recompute path from current node anchor positions.
     void adjust();
 
@@ -114,6 +118,7 @@ private:
     QString m_labelText;
     EdgeLabelStyle m_labelStyle;
     QGraphicsItem *m_labelItem = nullptr;  // child item, lazily created
+    qreal m_dashOffset = 0.0;
 
     // Caches computed in adjust() — invalidated whenever the path changes.
     qreal m_pathLength = 1.0;

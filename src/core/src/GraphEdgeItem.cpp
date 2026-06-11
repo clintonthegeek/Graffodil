@@ -147,6 +147,14 @@ void GraphEdgeItem::setLabelStyle(const EdgeLabelStyle &style)
     }
 }
 
+void GraphEdgeItem::setDashOffset(qreal offset)
+{
+    if (qFuzzyCompare(m_dashOffset, offset))
+        return;
+    m_dashOffset = offset;
+    update();
+}
+
 void GraphEdgeItem::updateLabelGeometry()
 {
     if (!m_labelItem)
@@ -323,6 +331,9 @@ void GraphEdgeItem::paint(QPainter *painter,
         grad.setColorAt(1.0, m_gradient->second);
         strokePen.setBrush(QBrush(grad));
     }
+
+    if (!strokePen.dashPattern().isEmpty())
+        strokePen.setDashOffset(m_dashOffset);
 
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(strokePen);
