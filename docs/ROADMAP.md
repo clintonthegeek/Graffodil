@@ -29,7 +29,7 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 | 5. Spatial module | ☑ complete | [plan](superpowers/plans/2026-06-09-spatial-module.md) | A3 |
 | 6a. Animated layout transitions | ☐ spec'd, needs plan | [spec](specs/animated-layout-transitions.md) | feature |
 | 6b. Sugiyama refactor + junction dots | ☐ spec'd, needs plan | [spec](specs/sugiyama-refactor-and-junctions.md) | A6 + ConnectorItem revival |
-| 6c. Edge labels | ☐ spec'd, needs plan | [spec](specs/edge-labels.md) | feature |
+| 6c. Edge labels | ☑ complete (v0.2.0) | [spec](specs/edge-labels.md) | feature |
 | 6d. CMake install/export | ☐ spec'd, needs plan | [spec](specs/cmake-install-export.md) | A9 |
 | 6e. Obstacle-aware routing | ☐ spec'd, needs plan | [spec](specs/obstacle-aware-routing.md) | feature |
 | 7. Deferred / backlog | — | see below | A7 P4 P5 |

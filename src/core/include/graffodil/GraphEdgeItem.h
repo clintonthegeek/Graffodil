@@ -51,6 +51,12 @@ public:
     void setHighlighted(bool highlighted);
     void setWaypoints(const QList<QPointF> &waypoints) override;
 
+    // --- Edge label (Phase 6c) ---
+    void setLabel(const QString &text);   // empty string removes the label
+    QString label() const { return m_labelText; }
+    void setLabelStyle(const EdgeLabelStyle &style);
+    EdgeLabelStyle labelStyle() const { return m_labelStyle; }
+
     /// Recompute path from current node anchor positions.
     void adjust();
 
@@ -90,6 +96,8 @@ private:
     Anchor resolveSourceAnchor() const;
     Anchor resolveTargetAnchor() const;
 
+    void updateLabelGeometry();   // called from adjust()
+
     QString m_id;
     IGraphNode *m_source;
     IGraphNode *m_target;
@@ -102,6 +110,10 @@ private:
     qreal m_hitWidth = 8.0;
     bool m_highlighted = false;
     std::optional<std::pair<QColor, QColor>> m_gradient;
+
+    QString m_labelText;
+    EdgeLabelStyle m_labelStyle;
+    QGraphicsItem *m_labelItem = nullptr;  // child item, lazily created
 
     // Caches computed in adjust() — invalidated whenever the path changes.
     qreal m_pathLength = 1.0;

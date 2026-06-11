@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QColor>
+#include <QFont>
 #include <QHash>
 #include <QList>
 #include <QPair>
@@ -45,6 +47,17 @@ struct LayoutResult {
     /// Optional waypoints for edges spanning multiple layers (Sugiyama)
     /// or needing routing hints. Key is (sourceId, targetId).
     QHash<QPair<QString, QString>, QList<QPointF>> edgeWaypoints;
+};
+
+/// Phase 6c: styling for an edge's midpoint label.
+struct EdgeLabelStyle {
+    QFont font;
+    QColor color = QColor(60, 60, 60);
+    QColor background = Qt::transparent;
+    qreal backgroundPadding = 2.0;
+    qreal positionOnPath = 0.5;      ///< 0..1 along path (source → target)
+    QPointF offset = {0.0, -6.0};    ///< px offset from the path point
+    bool rotateWithPath = false;     ///< align baseline to path tangent
 };
 
 } // namespace Graffodil

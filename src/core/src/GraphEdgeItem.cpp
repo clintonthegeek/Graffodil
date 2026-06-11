@@ -5,8 +5,54 @@
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPathStroker>
+#include <QFontMetricsF>
 #include <QCursor>
 #include <QUuid>
+
+namespace {
+class EdgeLabelItem : public QGraphicsItem {
+public:
+    explicit EdgeLabelItem(QGraphicsItem *parent) : QGraphicsItem(parent)
+    {
+        setFlag(QGraphicsItem::ItemIgnoresParentOpacity, false);
+    }
+
+    void setContent(const QString &text, const Graffodil::EdgeLabelStyle &style)
+    {
+        prepareGeometryChange();
+        m_text = text;
+        m_style = style;
+        const QFontMetricsF fm(m_style.font);
+        m_textRect = fm.boundingRect(m_text);
+        update();
+    }
+
+    QRectF boundingRect() const override
+    {
+        const qreal pad = m_style.backgroundPadding;
+        return m_textRect.adjusted(-pad, -pad, pad, pad)
+            .translated(-m_textRect.center());
+    }
+
+    void paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *) override
+    {
+        const QRectF r = boundingRect();
+        if (m_style.background.alpha() > 0) {
+            p->setPen(Qt::NoPen);
+            p->setBrush(m_style.background);
+            p->drawRoundedRect(r, 3.0, 3.0);
+        }
+        p->setFont(m_style.font);
+        p->setPen(m_style.color);
+        p->drawText(r, Qt::AlignCenter, m_text);
+    }
+
+private:
+    QString m_text;
+    Graffodil::EdgeLabelStyle m_style;
+    QRectF m_textRect;
+};
+} // namespace
 
 namespace Graffodil {
 
@@ -76,6 +122,52 @@ void GraphEdgeItem::clearGradient()
         return;
     m_gradient.reset();
     update();
+}
+
+void GraphEdgeItem::setLabel(const QString &text)
+{
+    m_labelText = text;
+    if (text.isEmpty()) {
+        delete m_labelItem;
+        m_labelItem = nullptr;
+        return;
+    }
+    if (!m_labelItem)
+        m_labelItem = new EdgeLabelItem(this);
+    static_cast<EdgeLabelItem *>(m_labelItem)->setContent(m_labelText, m_labelStyle);
+    updateLabelGeometry();
+}
+
+void GraphEdgeItem::setLabelStyle(const EdgeLabelStyle &style)
+{
+    m_labelStyle = style;
+    if (m_labelItem) {
+        static_cast<EdgeLabelItem *>(m_labelItem)->setContent(m_labelText, m_labelStyle);
+        updateLabelGeometry();
+    }
+}
+
+void GraphEdgeItem::updateLabelGeometry()
+{
+    if (!m_labelItem)
+        return;
+    const QPainterPath p = path();
+    if (p.isEmpty()) {
+        m_labelItem->setVisible(false);   // hidden until first adjust (spec)
+        return;
+    }
+    m_labelItem->setVisible(true);
+    const qreal t = qBound(0.0, m_labelStyle.positionOnPath, 1.0);
+    // path() is in item coords; child item position is also item coords.
+    m_labelItem->setPos(p.pointAtPercent(t) + m_labelStyle.offset);
+    if (m_labelStyle.rotateWithPath) {
+        qreal angle = -p.angleAtPercent(t);     // Qt angles are CCW-positive
+        if (angle > 90.0 || angle < -90.0)      // flip in upside-down range
+            angle += 180.0;
+        m_labelItem->setRotation(angle);
+    } else {
+        m_labelItem->setRotation(0.0);
+    }
 }
 
 void GraphEdgeItem::setHighlighted(bool highlighted)
@@ -148,6 +240,7 @@ void GraphEdgeItem::adjust()
 
     QPainterPath path = m_strategy->computePath(src, tgt, m_waypoints);
     setPath(path);
+    updateLabelGeometry();
 
     m_shapeDirty = true;
     if (path.isEmpty()) {
