@@ -263,6 +263,41 @@ void GraphEdgeItem::adjust()
     m_tgtTangentRef = path.pointAtPercent(qMax(0.95, 1.0 - 10.0 / m_pathLength));
 }
 
+QPointF GraphEdgeItem::edgePoint(qreal t) const
+{
+    if (path().isEmpty())
+        return {};
+    const qreal clamped = qBound(0.0, t, 1.0);
+    return path().pointAtPercent(clamped);
+}
+
+void GraphEdgeItem::addTransientChild(QGraphicsItem *child)
+{
+    if (!child)
+        return;
+    child->setVisible(false);
+    m_transientChildren.append(child);
+}
+
+void GraphEdgeItem::hoverEnterEvent(QGraphicsSceneHoverEvent *event)
+{
+    for (auto *c : m_transientChildren)
+        c->setVisible(true);
+    onHoverEnter();
+    QGraphicsPathItem::hoverEnterEvent(event);
+}
+
+void GraphEdgeItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
+{
+    for (auto *c : m_transientChildren)
+        c->setVisible(false);
+    onHoverLeave();
+    QGraphicsPathItem::hoverLeaveEvent(event);
+}
+
+void GraphEdgeItem::onHoverEnter() {}
+void GraphEdgeItem::onHoverLeave() {}
+
 QRectF GraphEdgeItem::boundingRect() const
 {
     // Expand the path's bounding rect to include terminus shapes,

@@ -489,4 +489,20 @@ void GraphScene::keyReleaseEvent(QKeyEvent *e)
         QGraphicsScene::keyReleaseEvent(e);
 }
 
+void GraphScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e)
+{
+    // If nothing is under the cursor, treat as background double-click.
+    if (items(e->scenePos()).isEmpty()) {
+        emit backgroundDoubleClicked(e->scenePos());
+        e->accept();
+        return;
+    }
+    QGraphicsScene::mouseDoubleClickEvent(e);
+}
+
+void GraphScene::placeNodeAt(const QPointF &)
+{
+    // Default: do nothing. Subclasses override to create nodes at explicit coords.
+}
+
 } // namespace Graffodil

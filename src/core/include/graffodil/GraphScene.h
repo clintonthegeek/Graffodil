@@ -144,13 +144,24 @@ signals:
     void edgeAdded(IGraphEdge *edge);
     void edgeRemoved(const QString &id);
 
+    /// Emitted when the user double-clicks on empty scene background
+    /// (no graphics item under the cursor). Useful for "double-click to create".
+    void backgroundDoubleClicked(const QPointF &scenePos);
+
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) override;
     void wheelEvent(QGraphicsSceneWheelEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
     void keyReleaseEvent(QKeyEvent *e) override;
+
+    /// Hook for subclasses that want to place a new node at an explicit
+    /// scene coordinate (e.g., canvas double-click creation). The default
+    /// implementation is a no-op. Consumers that need neighbor-anchored
+    /// placement should continue to use their own logic around placeNewNode.
+    virtual void placeNodeAt(const QPointF &scenePos);
 
 private slots:
     void refreshGroupsFromSceneChange(const QList<QRectF> &region);

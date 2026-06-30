@@ -91,9 +91,24 @@ public:
     QPainterPath shape() const override;
     QRectF boundingRect() const override;
 
+    /// Parametric point along the rendered edge path (0.0 = source, 1.0 = target).
+    /// Useful for placing mid-edge widgets (e.g., "+" insert affordance).
+    QPointF edgePoint(qreal t) const;
+
+    /// Register a transient child item (e.g., a "+" or "×" button) that will be
+    /// automatically shown on hover-enter and hidden on hover-leave. The edge
+    /// takes ownership of visibility toggling; the caller still owns lifetime.
+    void addTransientChild(QGraphicsItem *child);
+
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
                QWidget *widget) override;
+    void hoverEnterEvent(QGraphicsSceneHoverEvent *event) override;
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent *event) override;
+
+    /// Override points for subclasses that want custom hover behavior.
+    virtual void onHoverEnter();
+    virtual void onHoverLeave();
 
 private:
     /// Resolve the current anchor from the node (either by id or dynamically).
@@ -126,6 +141,8 @@ private:
     QPointF m_srcTangentRef, m_tgtTangentRef;
     mutable QPainterPath m_shapeCache;
     mutable bool m_shapeDirty = true;
+
+    QList<QGraphicsItem *> m_transientChildren;
 };
 
 } // namespace Graffodil
