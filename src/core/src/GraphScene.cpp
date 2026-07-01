@@ -10,6 +10,10 @@
 
 namespace Graffodil {
 
+namespace {
+static constexpr int kTransientSceneItemRole = 0x47524631; // "GRF1"
+}
+
 void GraphScene::addNode(IGraphNode *node)
 {
     if (!node || m_nodes.contains(node->nodeId()))
@@ -435,8 +439,13 @@ void GraphScene::adjustAllEdges()
 // on hover because the cursor update is driven from the base mouseMoveEvent.
 void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent *e)
 {
+    if (focusItem()) {
+        QGraphicsScene::mousePressEvent(e);
+        return;
+    }
+
     // Edge-action affordance takes precedence over the active tool.
-    if (auto hit = edgeActionAt(e->scenePos())) {
+    if (const auto hit = edgeActionAt(e->scenePos()); hit.edge) {
         mousePressEventEdgeAction(hit.edge, hit.action.id, e->scenePos());
         emit edgeActionTriggered(hit.edge, hit.action.id, e->scenePos());
         e->accept();
@@ -451,6 +460,11 @@ void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent *e)
 
 void GraphScene::mouseMoveEvent(QGraphicsSceneMouseEvent *e)
 {
+    if (focusItem()) {
+        QGraphicsScene::mouseMoveEvent(e);
+        return;
+    }
+
     if (m_activeTool) {
         m_activeTool->mouseMoveEvent(e);
         // Only run hover/cursor tracking when no mouse button is pressed.
@@ -464,6 +478,11 @@ void GraphScene::mouseMoveEvent(QGraphicsSceneMouseEvent *e)
 
 void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *e)
 {
+    if (focusItem()) {
+        QGraphicsScene::mouseReleaseEvent(e);
+        return;
+    }
+
     if (m_activeTool)
         m_activeTool->mouseReleaseEvent(e);
     else
@@ -531,7 +550,16 @@ void GraphScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e)
 
 bool GraphScene::isBackgroundDoubleClickPoint(const QPointF &scenePos) const
 {
-    return items(scenePos).isEmpty();
+    const auto hits = items(scenePos);
+    for (auto *item : hits) {
+        if (!item) continue;
+        if (item->data(kTransientSceneItemRole).toBool())
+            continue;
+        if (item->acceptedMouseButtons() == Qt::NoButton)
+            continue;
+        return false;
+    }
+    return true;
 }
 
 void GraphScene::placeNodeAt(const QPointF &)

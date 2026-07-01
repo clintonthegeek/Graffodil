@@ -13,6 +13,10 @@
 
 namespace Graffodil {
 
+namespace {
+static constexpr int kTransientSceneItemRole = 0x47524631; // "GRF1"
+}
+
 // Resolve the click to an IGraphNode*, IGraphEdge*, or neither.
 // Prefers nodes over edges when they overlap.
 static IGraphNode *findNodeAt(GraphScene *scene, const QPointF &scenePos)
@@ -137,6 +141,7 @@ void SelectMoveTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
     m_rubberBandOrigin = event->scenePos();
     m_rubberBandModifiers = event->modifiers();
     m_rubberBand = new QGraphicsRectItem(QRectF(m_rubberBandOrigin, QSizeF(0, 0)));
+    m_rubberBand->setData(kTransientSceneItemRole, true);
     m_rubberBand->setPen(QPen(QColor(0, 120, 215), 1, Qt::DashLine));
     m_rubberBand->setBrush(QBrush(QColor(0, 120, 215, 30)));
     m_rubberBand->setZValue(10000);
