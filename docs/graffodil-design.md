@@ -255,15 +255,45 @@ protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
-};
 
+    // Subclass hook for the empty-canvas double-click gesture.
+    // Default is a no-op; called before backgroundDoubleClicked() emits.
+    virtual void mouseDoubleClickEventBackground(const QPointF &scenePos);
 }
+
+// Background double-click fired by the default mouseDoubleClickEvent() when
+// no graphics item is under the cursor. See "Background double-click gesture"
+// below.
 ```
 
 **Ownership model:** The scene manages the QGraphicsItem lifetime (standard Qt parent-child ownership via `QGraphicsScene::addItem()`). The `IGraphNode`/`IGraphEdge` wrapper objects are owned by the consumer — the scene holds non-owning pointers and removes them from its registry on `removeNode()`/`removeEdge()`.
 
 **Layout agnosticism:** The scene does not require a layout engine. Consumers can position nodes manually (Canvas), via a one-shot layout (Sugiyama, Circular), via an animated simulation (Force), or by deserializing saved positions. The scene neither knows nor cares which approach is used.
+
+### Background double-click gesture
+
+The default `mouseDoubleClickEvent()` implementation centralizes the
+empty-canvas gesture through two APIs:
+
+| API | Use when… |
+|-----|-----------|
+| `backgroundDoubleClicked(const QPointF&)` signal | The consumer is not a `GraphScene` subclass, or multiple observers need to react. Connect a slot. |
+| `mouseDoubleClickEventBackground(const QPointF&)` protected virtual | The consumer is a `GraphScene` subclass and wants a synchronous hook (e.g., call `placeNodeAt()` to create a new node at the double-click point). Override it. |
+
+Both fire in the same call, in this order: the virtual is invoked first, then
+the signal is emitted. Subclasses that override the virtual run before any
+slot connected to the signal — so observers see the post-subclass state.
+The virtual default is a no-op, so overriding it is purely additive: existing
+consumers connected only to the signal see no behavior change.
+
+**Do not** reproduce the empty-area test (`items(pos).isEmpty()`) in your own
+`mouseDoubleClickEvent` override. The scene owns the definition of "is this
+the empty canvas?" — duplicating it in each consumer leads to subtle drift
+if the criterion ever changes (e.g., to exclude handles or zoom anchors).
+If you need full mouse-event control, override `mouseDoubleClickEvent` and
+forward to `QGraphicsScene::mouseDoubleClickEvent` after your custom logic.
 
 ### Group regions
 
@@ -532,8 +562,9 @@ Click-without-drag does not emit `dragBegan` / `dragEnded`. Multi-select drag em
 |---|---|
 | `nodeAdded(node)` / `nodeRemoved(id)` | `addNode` / `removeNode` called (structural — not user-intent) |
 | `edgeAdded(edge)` / `edgeRemoved(id)` | `addEdge` / `removeEdge` called (structural — not user-intent) |
+| `backgroundDoubleClicked(scenePos)` | User double-clicks on the empty canvas (no graphics item under cursor). Connect to react — or override `mouseDoubleClickEventBackground()` from a `GraphScene` subclass instead. |
 
-Scene signals fire from the registry calls themselves, so they do not distinguish consumer-driven additions from tool-driven ones. For undo capture, connect to tool signals, not scene signals.
+Scene signals fire from the registry calls themselves, so they do not distinguish consumer-driven additions from tool-driven ones. For undo capture, connect to tool signals, not scene signals. (`backgroundDoubleClicked` is a user-intent signal, not a structural one — pair any "create on canvas" handler with an undo command of your own.)
 
 **Not currently emitted (by design)**
 

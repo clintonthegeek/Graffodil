@@ -1,6 +1,7 @@
 #include <QTest>
 #include <QSignalSpy>
 #include <QCoreApplication>
+#include <QGraphicsSceneMouseEvent>
 #include <QGraphicsTextItem>
 #include <QKeyEvent>
 #include "TestHelpers.h"
@@ -63,6 +64,22 @@ public:
 
 using namespace Graffodil;
 using namespace Graffodil::Test;
+
+// Helper subclass for the background-double-click contract tests below.
+// Captures every scene position the protected virtual
+// mouseDoubleClickEventBackground() is called with so tests can verify
+// the gesture dispatcher did (or did not) route through it. We also log
+// an order marker ("V") so a connected slot ("S") can compare timings.
+class BGScene : public GraphScene {
+public:
+    using GraphScene::GraphScene;
+    void mouseDoubleClickEventBackground(const QPointF &p) override {
+        virtualHits.append(p);
+        log.append(QChar('V'));
+    }
+    QList<QPointF> virtualHits;
+    QString log;
+};
 
 class TestInterfaces : public QObject {
     Q_OBJECT
@@ -459,6 +476,152 @@ private slots:
 
         QCOMPARE(tool.releasedCount, 0);  // tool didn't see it
         scene.setActiveTool(nullptr);
+    }
+
+    // -----------------------------------------------------------------
+    // Background double-click gesture (signal + protected virtual)
+    // -----------------------------------------------------------------
+    //
+    // Contract:
+    //   * backgroundDoubleClicked(scenePos) signal fires for double-clicks
+    //     on empty scene area.
+    //   * It does NOT fire when double-clicking on a node or an edge.
+    //   * The protected mouseDoubleClickEventBackground() virtual is a
+    //     parallel subclass API: same fire/no-fire semantics.
+    //   * The virtual is invoked BEFORE the signal in the dispatcher
+    //     so subclass state is visible to slots.
+
+    // Helper: dispatch a synthetic GraphicsSceneMouseDoubleClick at the
+    // given scene position. Returns nothing; the caller inspects spies.
+    static void sendDoubleClick(QGraphicsScene *scene, const QPointF &p)
+    {
+        QGraphicsSceneMouseEvent ev(QEvent::GraphicsSceneMouseDoubleClick);
+        ev.setScenePos(p);
+        ev.setButton(Qt::LeftButton);
+        ev.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(scene, &ev);
+    }
+
+    void backgroundDoubleClicked_firesOnEmptyCanvas()
+    {
+        BGScene scene;
+        QSignalSpy spy(&scene, &GraphScene::backgroundDoubleClicked);
+
+        // Empty canvas: any point is "background".
+        sendDoubleClick(&scene, QPointF(123, 456));
+        QCOMPARE(spy.count(), 1);
+        QCOMPARE(spy.takeFirst().at(0).toPointF(), QPointF(123, 456));
+    }
+
+    void backgroundDoubleClicked_doesNotFireOnNode()
+    {
+        BGScene scene;
+        auto *n1 = new TestNode("n1", {0, 0});   // 100x60 rect at scene (0,0)
+        scene.addNode(n1);
+
+        QSignalSpy spy(&scene, &GraphScene::backgroundDoubleClicked);
+        // Center of the node — must be hit-testable, so NOT background.
+        sendDoubleClick(&scene, QPointF(50, 30));
+        QCOMPARE(spy.count(), 0);
+    }
+
+    void backgroundDoubleClicked_doesNotFireOnEdge()
+    {
+        BGScene scene;
+        auto *n1 = new TestNode("n1", {0, 0});
+        auto *n2 = new TestNode("n2", {400, 0});
+        scene.addNode(n1);
+        scene.addNode(n2);
+        auto *edge = new GraphEdgeItem(n1, QString(), n2, QString(),
+                                       std::make_unique<DirectPathStrategy>());
+        edge->adjust();          // give it a real path so hit-testing works
+        scene.addEdge(edge);
+
+        QSignalSpy spy(&scene, &GraphScene::backgroundDoubleClicked);
+        // DirectPathStrategy goes horizontally between the nearest anchors:
+        // midpoint (200, 30) sits ON the rendered edge (8px hit-width), so
+        // items(scenePos) is non-empty and this must not be treated as
+        // background.
+        sendDoubleClick(&scene, QPointF(200, 30));
+        QCOMPARE(spy.count(), 0);
+    }
+
+    void backgroundDoubleClickVirtual_firesOnEmptyCanvas()
+    {
+        BGScene scene;
+        sendDoubleClick(&scene, QPointF(11, 22));
+        QCOMPARE(scene.virtualHits.size(), 1);
+        QCOMPARE(scene.virtualHits.first(), QPointF(11, 22));
+    }
+
+    void backgroundDoubleClickVirtual_doesNotFireOnNode()
+    {
+        BGScene scene;
+        auto *n1 = new TestNode("n1", {0, 0});
+        scene.addNode(n1);
+
+        sendDoubleClick(&scene, QPointF(50, 30));
+        QCOMPARE(scene.virtualHits.size(), 0);
+    }
+
+    void backgroundDoubleClickVirtual_doesNotFireOnEdge()
+    {
+        BGScene scene;
+        auto *n1 = new TestNode("n1", {0, 0});
+        auto *n2 = new TestNode("n2", {400, 0});
+        scene.addNode(n1);
+        scene.addNode(n2);
+        auto *edge = new GraphEdgeItem(n1, QString(), n2, QString(),
+                                       std::make_unique<DirectPathStrategy>());
+        edge->adjust();
+        scene.addEdge(edge);
+
+        sendDoubleClick(&scene, QPointF(200, 30));
+        QCOMPARE(scene.virtualHits.size(), 0);
+    }
+
+    void backgroundDoubleClickVirtual_firesBeforeSignal()
+    {
+        // The dispatcher calls the subclass virtual first, then emits
+        // the signal. So the subclass sees its own bookkeeping before
+        // any slot connected to the signal runs.
+        BGScene scene;
+        QSignalSpy spy(&scene, &GraphScene::backgroundDoubleClicked);
+        QObject::connect(&scene, &GraphScene::backgroundDoubleClicked,
+                         &scene, [&] { scene.log.append(QChar('S')); });
+
+        sendDoubleClick(&scene, QPointF(0, 0));
+        QCOMPARE(scene.log, QString("VS"));
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void backgroundDoubleClickSignalStillFiresWhenVirtualOverridden()
+    {
+        // Overriding the virtual must be additive — existing signal
+        // consumers continue to be notified. This is what the docs
+        // promise: subclasses override for additional behavior, the
+        // signal half is unaffected.
+        BGScene scene;
+        QSignalSpy spy(&scene, &GraphScene::backgroundDoubleClicked);
+
+        sendDoubleClick(&scene, QPointF(7, 7));
+        QCOMPARE(scene.virtualHits.size(), 1);   // virtual fired
+        QCOMPARE(spy.count(), 1);                // signal also fired
+    }
+
+    void backgroundDoubleClickDefaultScene_doesNotCallBaseByMistake()
+    {
+        // Sanity: on a vanilla GraphScene (no subclass override), the
+        // signal still fires and nothing is dispatched to the base
+        // QGraphicsScene (which would route through the item, which
+        // could swallow or alter the gesture for things like an empty
+        // canvas). The "empty-area" path must fully consume the event
+        // so downstream consumers don't accidentally fall through.
+        GraphScene scene;
+        QSignalSpy spy(&scene, &GraphScene::backgroundDoubleClicked);
+
+        sendDoubleClick(&scene, QPointF(99, 99));
+        QCOMPARE(spy.count(), 1);
     }
 };
 

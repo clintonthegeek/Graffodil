@@ -145,13 +145,29 @@ signals:
     void edgeRemoved(const QString &id);
 
     /// Emitted when the user double-clicks on empty scene background
-    /// (no graphics item under the cursor). Useful for "double-click to create".
+    /// (no graphics item under the cursor at the double-click point).
+    /// The protected virtual mouseDoubleClickEventBackground() is invoked
+    /// first, so subclasses can run synchronous work before any slots
+    /// connected here are notified. Useful for "double-click to create".
+    ///
+    /// Use this signal OR override mouseDoubleClickEventBackground() —
+    /// not the `items(scenePos).isEmpty()` test directly. Re-implementing
+    /// the heuristic in your own mouseDoubleClickEvent override
+    /// duplicates the contract this signal and the virtual exist to
+    /// centralize, and risks drifting from the canonical definition
+    /// if the gesture criteria ever change (e.g., to ignore handles
+    /// or zoomable anchors).
     void backgroundDoubleClicked(const QPointF &scenePos);
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
+    /// Dispatcher for background double-click. Default implementation
+    /// routes the gesture through mouseDoubleClickEventBackground() and
+    /// then emits backgroundDoubleClicked(); if you only want the signal
+    /// half, connect to the signal instead of re-overriding this virtual.
+    /// Items under the cursor are forwarded to QGraphicsScene as usual.
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) override;
     void wheelEvent(QGraphicsSceneWheelEvent *e) override;
 
@@ -174,6 +190,30 @@ protected:
     /// placement should continue to use their own logic around placeNewNode.
     virtual void placeNodeAt(const QPointF &scenePos);
 
+    /// Subclass hook for the background double-click gesture. Called by
+    /// the default mouseDoubleClickEvent() implementation when the cursor
+    /// is over empty scene area — i.e., exactly when the
+    /// backgroundDoubleClicked() signal would fire. Default is a no-op.
+    ///
+    /// Two ways to react to the gesture:
+    ///   1. Override this virtual in your GraphScene subclass for
+    ///      synchronous, subclass-local work (e.g., create a node at
+    ///      scenePos and call placeNodeAt() to wire it into your model).
+    ///   2. Connect to the backgroundDoubleClicked() signal — better
+    ///      when the consumer is not a GraphScene subclass, or when
+    ///      multiple observers need to react.
+    ///
+    /// Do NOT re-implement the `items(scenePos).isEmpty()` heuristic in
+    /// your own mouseDoubleClickEvent() override — that duplicates the
+    /// concept this hook and the signal exist to centralize. If you do
+    /// override mouseDoubleClickEvent(), call BaseGraphScene::mouseDouble
+    /// ClickEvent() so the gesture is still dispatched through the same
+    /// hook + signal pipeline.
+    ///
+    /// The signal is emitted AFTER this virtual returns, so any state
+    /// you create here is visible to signal slots.
+    virtual void mouseDoubleClickEventBackground(const QPointF &scenePos);
+
 private slots:
     void refreshGroupsFromSceneChange(const QList<QRectF> &region);
 
@@ -181,6 +221,12 @@ private:
     /// Recompute bounds of every group from its current members.
     /// Called after scene mutations and whenever membership changes.
     void refreshGroups();
+
+    /// Canonical "is this point the empty background?" test for the
+    /// background double-click gesture. Kept private so the heuristic
+    /// stays in one place; consumers should use the signal or override
+    /// the virtual instead of calling this themselves.
+    bool isBackgroundDoubleClickPoint(const QPointF &scenePos) const;
 
     QHash<QString, IGraphNode *> m_nodes;
     QHash<QString, IGraphEdge *> m_edges;

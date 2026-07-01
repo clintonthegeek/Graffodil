@@ -504,8 +504,16 @@ void GraphScene::keyReleaseEvent(QKeyEvent *e)
 
 void GraphScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e)
 {
-    // If nothing is under the cursor, treat as background double-click.
-    if (items(e->scenePos()).isEmpty()) {
+    // The "empty background" heuristic is centralized in
+    // isBackgroundDoubleClickPoint(). Do NOT duplicate this test in
+    // consumer mouseDoubleClickEvent overrides — connect to the
+    // backgroundDoubleClicked() signal or override the protected
+    // mouseDoubleClickEventBackground() hook instead.
+    if (isBackgroundDoubleClickPoint(e->scenePos())) {
+        // Virtual first: subclasses run synchronous work (e.g.,
+        // create + place a new node) before observers are notified.
+        // Signal second: subscribers see the post-subclass state.
+        mouseDoubleClickEventBackground(e->scenePos());
         emit backgroundDoubleClicked(e->scenePos());
         e->accept();
         return;
@@ -513,9 +521,23 @@ void GraphScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e)
     QGraphicsScene::mouseDoubleClickEvent(e);
 }
 
+bool GraphScene::isBackgroundDoubleClickPoint(const QPointF &scenePos) const
+{
+    return items(scenePos).isEmpty();
+}
+
 void GraphScene::placeNodeAt(const QPointF &)
 {
     // Default: do nothing. Subclasses override to create nodes at explicit coords.
+}
+
+void GraphScene::mouseDoubleClickEventBackground(const QPointF &)
+{
+    // Default: do nothing. Subclasses override to react synchronously
+    // to background double-clicks. See the header docs for the contract;
+    // preferred over a custom mouseDoubleClickEvent override because
+    // the scene's empty-area heuristic is centralized in
+    // isBackgroundDoubleClickPoint().
 }
 
 } // namespace Graffodil
