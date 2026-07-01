@@ -1,10 +1,12 @@
 #include <QTest>
 #include <QSignalSpy>
 #include <QCoreApplication>
+#include <QGraphicsTextItem>
 #include <QKeyEvent>
 #include "TestHelpers.h"
 #include <graffodil/GraphScene.h>
 #include <graffodil/GraphTool.h>
+#include <graffodil/SelectMoveTool.h>
 #include <graffodil/Anchors.h>
 #include <graffodil/GraphEdgeItem.h>
 #include <graffodil/EdgePathStrategy.h>
@@ -366,6 +368,97 @@ private slots:
         scene.removeNode("b");                           // cascades e1+e2
         QCOMPARE(scene.connectedEdges("a").size(), 1);   // just the loop
         QCOMPARE(scene.edges().size(), 1);
+    }
+
+    void focusedEditorPreemptsActiveToolOnDelete()
+    {
+        // Scene-level promise: when a QGraphicsTextItem holds focus,
+        // keys like Delete/Backspace/R reach the focused editor rather
+        // than being swallowed by SelectMoveTool's delete handling.
+        // This means consumers do NOT need to special-case focusItem()
+        // in their own scene subclass — the scene's keyPressEvent()
+        // already routes around the active tool.
+        using namespace Graffodil;
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new Test::TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+        n1->graphicsItem()->setSelected(true);
+
+        // Place an editable QGraphicsTextItem in the scene with focus.
+        auto *editor = new QGraphicsTextItem;
+        editor->setPlainText("abc");
+        editor->setTextInteractionFlags(Qt::TextEditorInteraction);
+        scene.addItem(editor);
+        editor->setFocus();
+        QCOMPARE(scene.focusItem(), editor);
+
+        QSignalSpy delSpy(&tool, &SelectMoveTool::deleteRequested);
+        QSignalSpy revSpy(&tool, &SelectMoveTool::reverseRequested);
+
+        // Pressing Delete must NOT bubble through to the active tool.
+        QKeyEvent del(QEvent::KeyPress, Qt::Key_Delete, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &del);
+        QCOMPARE(delSpy.count(), 0);
+
+        // Pressing R likewise must NOT bubble through to reverse.
+        QKeyEvent r(QEvent::KeyPress, Qt::Key_R, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &r);
+        QCOMPARE(revSpy.count(), 0);
+
+        // The selected node must still be selected — nothing was deleted
+        // by the tool.
+        QVERIFY(n1->graphicsItem()->isSelected());
+    }
+
+    void deletionReachesToolWhenNoFocusItem()
+    {
+        // Symmetric contract assertion: with no focus item present, the
+        // existing behavior — Delete triggers deleteRequested — is
+        // preserved unchanged.
+        using namespace Graffodil;
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new Test::TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+        n1->graphicsItem()->setSelected(true);
+
+        QVERIFY(scene.focusItem() == nullptr);
+
+        QSignalSpy delSpy(&tool, &SelectMoveTool::deleteRequested);
+
+        QKeyEvent del(QEvent::KeyPress, Qt::Key_Delete, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &del);
+        QCOMPARE(delSpy.count(), 1);
+    }
+
+    void keyReleaseRoutesToFocusedItemFirst()
+    {
+        // Same precedence applies to releases: when focusItem() is set,
+        // keyReleaseEvent forwards to the base QGraphicsScene so that
+        // the focused item's own keyReleaseEvent sees it first.
+        using namespace Graffodil;
+        GraphScene scene;
+        KeyRecordingTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *editor = new QGraphicsTextItem;
+        editor->setPlainText("x");
+        editor->setTextInteractionFlags(Qt::TextEditorInteraction);
+        scene.addItem(editor);
+        editor->setFocus();
+
+        QKeyEvent rel(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &rel);
+
+        QCOMPARE(tool.releasedCount, 0);  // tool didn't see it
+        scene.setActiveTool(nullptr);
     }
 };
 

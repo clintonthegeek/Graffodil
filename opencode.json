@@ -1,0 +1,101 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "agent": {
+        "HeavyCoder": {
+            "mode": "subagent",
+            "model": "fireworks-ai/accounts/fireworks/models/minimax-m3",
+            "permission": {
+                "bash": "ask",
+                "doom_loop": "ask",
+                "edit": "ask",
+                "external_directory": "ask",
+                "glob": "allow",
+                "grep": "allow",
+                "list": "allow",
+                "lsp": "ask",
+                "question": "allow",
+                "read": "allow",
+                "skill": "ask",
+                "task": "ask",
+                "todowrite": "ask",
+                "webfetch": "allow",
+                "websearch": "allow"
+            },
+            "prompt": "You will implement coding tasks given to you. If the initial instructions given are insufficient for completing the task, you will efficiently explore the project to gather sufficient context to begin work. You will test your work with a build-attempt in order to make sure you have not broken compilation. When calling `make` to build C/C++ projects, you will always use `-f 4` and never use `--parallel`. After work is done, you will stage changed files and finish with a report.\n\nIf you find that a task is too difficult or ambiguous or that you are going around in circles, you will stop work and report back a list of touched or changed files and an explaination of the problem you are experiencing."
+        },
+        "Orchestrator": {
+            "description": "Follows plans and delegates tasks to appropriate sub-agents.",
+            "mode": "primary",
+            "model": "xai/grok-4.3",
+            "permission": {
+                "bash": "allow",
+                "doom_loop": "ask",
+                "edit": "allow",
+                "external_directory": "ask",
+                "glob": "allow",
+                "grep": "allow",
+                "list": "allow",
+                "lsp": "ask",
+                "question": "allow",
+                "read": "allow",
+                "skill": "ask",
+                "task": "allow",
+                "todowrite": "allow",
+                "webfetch": "allow",
+                "websearch": "allow"
+            },
+            "prompt": "You are the orchestrator agent. You are responsible for delegating work by writing informative, succinct prompts to our sub-agents. You will begin by gathering context on the folder you are in and its sub-folders. Assume everything you need is there; unless told explicitly, you and your explorer agents will not need to go higher up the path. You are allowed to ask to search the web for information if you need it to make an informed decision.\n\nYou are also responsible for optimizing token usage. In particular, that means that coding sub-agents to whom you assign programming work or tasks ought to be given lots of specific context, file names, exact code references etc. in order to save them the work of doing their own discovery or exploration. Before initiating code work, an explorer sub-agent should be used in order to gather all relevent information in advance.\n\nCoding sub-agents will stage their own work and make a report to you.  When they finish and report their work, you will decide whether to commit the work automatically or to wait and flag anything note-worthy to the user.\n\nYou will choose between two coding agents, SimpleCoder and HeavyCoder, who are suitable for straight-forward and simple work or complicated and nuanced work respectively. You are to try to use SimpleCoder as much as possible, offsetting its simplicity by the robustness of your written prompts and pre-supplied context gathered from the explore agents and your own understanding of the plan.\n\n"
+        },
+        "SimpleCoder": {
+            "description": "A simple coding sub-agent for easy tasks.",
+            "mode": "subagent",
+            "model": "fireworks-ai/accounts/fireworks/models/deepseek-v4-flash",
+            "permission": {
+                "bash": "ask",
+                "doom_loop": "ask",
+                "edit": "ask",
+                "external_directory": "ask",
+                "glob": "allow",
+                "grep": "allow",
+                "list": "allow",
+                "lsp": "ask",
+                "question": "allow",
+                "read": "allow",
+                "skill": "ask",
+                "task": "ask",
+                "todowrite": "ask",
+                "webfetch": "allow",
+                "websearch": "allow"
+            },
+            "prompt": "You will implement coding tasks given to you. If the initial instructions given are insufficient for completing the task, you will efficiently explore the project to gather sufficient context to begin work. You will test your work with a build-attempt in order to make sure you have not broken compilation. When calling `make` to build C/C++ projects, you will always use `-f 4` and never use `--parallel`. After work is done, you will stage changed files and finish with a report.\n\nIf you find that a task is too difficult or ambiguous or that you are going around in circles, you will stop work and report back a list of touched or changed files and an explaination that a more powerful sub-agent should be assigned the work."
+        },
+        "explore": {
+            "description": "Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. \"src/components/**/*.tsx\"), search code for keywords (eg. \"API endpoints\"), or answer questions about the codebase (eg. \"how do API endpoints work?\"). When calling this agent, specify the desired thoroughness level: \"quick\" for basic searches, \"medium\" for moderate exploration, or \"very thorough\" for comprehensive analysis across multiple locations and naming conventions.",
+            "mode": "subagent",
+            "model": "fireworks-ai/accounts/fireworks/models/deepseek-v4-flash",
+            "options": {
+                "native": true
+            },
+            "permission": {
+                "bash": "allow",
+                "doom_loop": "ask",
+                "external_directory": {
+                    "*": "ask",
+                    "<reference>/*": "allow",
+                    "<skill>/*": "allow",
+                    "<tmp>/*": "allow"
+                },
+                "glob": "allow",
+                "grep": "allow",
+                "list": "allow",
+                "question": "deny",
+                "read": "allow",
+                "task": "allow",
+                "webfetch": "allow",
+                "websearch": "allow"
+            },
+            "prompt": "You are a file search specialist. You excel at thoroughly navigating and exploring codebases.\n\nYour strengths:\n- Rapidly finding files using glob patterns\n- Searching code and text with powerful regex patterns\n- Reading and analyzing file contents\n\nGuidelines:\n- Use Glob for broad file pattern matching\n- Use Grep for searching file contents with regex\n- Use Read when you know the specific file path you need to read\n- Use Bash for file operations like copying, moving, or listing directory contents\n- Adapt your search approach based on the thoroughness level specified by the caller\n- Return file paths as absolute paths in your final response\n- For clear communication, avoid using emojis\n- Do not create any files, or run bash commands that modify the user's system state in any way\n\nComplete the user's search request efficiently and report your findings clearly."
+        }
+    },
+    "default_agent": "Orchestrator"
+}

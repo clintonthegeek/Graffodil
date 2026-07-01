@@ -1,6 +1,8 @@
 #include <QTest>
 #include <QSignalSpy>
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsTextItem>
+#include <QKeyEvent>
 #include <graffodil/GraphScene.h>
 #include <graffodil/GraphTool.h>
 #include <graffodil/SelectMoveTool.h>
@@ -377,6 +379,122 @@ private slots:
         QCoreApplication::sendEvent(&scene, &release);
 
         QCOMPARE(n1->graphicsItem()->pos(), QPointF(75, 0));
+    }
+
+    void selectToolDeletesSelectionOnDeleteKeyWithoutFocus()
+    {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+        n1->graphicsItem()->setSelected(true);
+
+        QSignalSpy spy(&tool, &SelectMoveTool::deleteRequested);
+
+        // No scene focus — Delete must still emit deleteRequested, as before.
+        QVERIFY(scene.focusItem() == nullptr);
+        QKeyEvent ev(QEvent::KeyPress, Qt::Key_Delete, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &ev);
+
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void selectToolBackspaceDeletesSelectionWithoutFocus()
+    {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *e1owner = new TestNode("src", {0, 0});
+        auto *e1tgt   = new TestNode("tgt", {200, 0});
+        scene.addNode(e1owner);
+        scene.addNode(e1tgt);
+        auto *edge = new TestEdge("e1", e1owner, e1tgt);
+        edge->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addEdge(edge);
+        edge->graphicsItem()->setSelected(true);
+
+        QSignalSpy spy(&tool, &SelectMoveTool::deleteRequested);
+
+        QVERIFY(scene.focusItem() == nullptr);
+        QKeyEvent ev(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &ev);
+
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void selectToolSuppressesKeyboardWhenFocusItemOwnsIt()
+    {
+        // Focused-editor contract: when an item has scene focus (e.g. a
+        // QGraphicsTextItem inside a node card is being edited), Delete
+        // must NOT emit deleteRequested, and R must NOT emit
+        // reverseRequested — the editor owns those keystrokes.
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+        n1->graphicsItem()->setSelected(true);
+
+        // Add a sibling QGraphicsTextItem to the scene and give it focus.
+        auto *editor = new QGraphicsTextItem;
+        editor->setPlainText("editable");
+        editor->setTextInteractionFlags(Qt::TextEditorInteraction);
+        scene.addItem(editor);
+        editor->setFocus();
+
+        QVERIFY(scene.focusItem() == editor);
+
+        QSignalSpy delSpy(&tool, &SelectMoveTool::deleteRequested);
+        QSignalSpy revSpy(&tool, &SelectMoveTool::reverseRequested);
+
+        QKeyEvent del(QEvent::KeyPress, Qt::Key_Delete, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &del);
+
+        QKeyEvent bs(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &bs);
+
+        QKeyEvent r(QEvent::KeyPress, Qt::Key_R, Qt::NoModifier);
+        QCoreApplication::sendEvent(&scene, &r);
+
+        QCOMPARE(delSpy.count(), 0);
+        QCOMPARE(revSpy.count(), 0);
+
+        // Selected node must still be selected — the tool did not see the keys.
+        QVERIFY(n1->graphicsItem()->isSelected());
+    }
+
+    void selectToolSuppressesKeyboardWhenFocusItemOwnsItDirect()
+    {
+        // Same contract, but driving the tool directly (not through
+        // GraphScene). This pins down the in-tool guard's purpose — it
+        // keeps the tool correct even when consumed outside the scene.
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+        n1->graphicsItem()->setSelected(true);
+
+        auto *editor = new QGraphicsTextItem;
+        editor->setPlainText("editable");
+        editor->setTextInteractionFlags(Qt::TextEditorInteraction);
+        scene.addItem(editor);
+        editor->setFocus();
+
+        QSignalSpy delSpy(&tool, &SelectMoveTool::deleteRequested);
+
+        QKeyEvent del(QEvent::KeyPress, Qt::Key_Delete, Qt::NoModifier);
+        tool.keyPressEvent(&del);
+
+        QCOMPARE(delSpy.count(), 0);
     }
 };
 

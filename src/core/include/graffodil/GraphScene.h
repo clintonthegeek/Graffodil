@@ -154,7 +154,18 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) override;
     void wheelEvent(QGraphicsSceneWheelEvent *e) override;
+
+    /// Keystrokes are routed to the focused item first (so that in-place
+    /// editors within node cards receive Delete/Backspace as expected),
+    /// then to the active tool, then to the base QGraphicsScene. This
+    /// means consumers do NOT need to special-case focusItem() in their
+    /// scene subclass just to keep typing inside a QGraphicsTextItem
+    /// working — the only requirement is that the editor item be added
+    /// to the scene and set as the focus widget.
     void keyPressEvent(QKeyEvent *e) override;
+
+    /// See keyPressEvent(): the same precedence — focused item, then
+    /// active tool, then base QGraphicsScene — applies to key releases.
     void keyReleaseEvent(QKeyEvent *e) override;
 
     /// Hook for subclasses that want to place a new node at an explicit

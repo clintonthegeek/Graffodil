@@ -475,7 +475,16 @@ void GraphScene::wheelEvent(QGraphicsSceneWheelEvent *e)
 
 void GraphScene::keyPressEvent(QKeyEvent *e)
 {
-    if (m_activeTool)
+    // If any item has scene focus (typically a QGraphicsTextItem being
+    // edited in-place inside a node card), let the base class route the
+    // event to it — QGraphicsScene::keyPressEvent() forwards the key to
+    // focusItem() before falling through. This way tool-level handling
+    // (Delete/Backspace, R, Escape, ...) cannot consume keystrokes the
+    // user is typing into a focused editor, so consumers no longer have
+    // to special-case focusItem() in their own scene subclass.
+    if (focusItem())
+        QGraphicsScene::keyPressEvent(e);
+    else if (m_activeTool)
         m_activeTool->keyPressEvent(e);
     else
         QGraphicsScene::keyPressEvent(e);
@@ -483,7 +492,11 @@ void GraphScene::keyPressEvent(QKeyEvent *e)
 
 void GraphScene::keyReleaseEvent(QKeyEvent *e)
 {
-    if (m_activeTool)
+    // See keyPressEvent() above: focused-item editors see their own
+    // releases first, otherwise the active tool handles them.
+    if (focusItem())
+        QGraphicsScene::keyReleaseEvent(e);
+    else if (m_activeTool)
         m_activeTool->keyReleaseEvent(e);
     else
         QGraphicsScene::keyReleaseEvent(e);

@@ -250,6 +250,18 @@ void SelectMoveTool::keyPressEvent(QKeyEvent *event)
     if (!m_scene)
         return;
 
+    // If the scene is currently delivering keystrokes to a focused item
+    // (typically a QGraphicsTextItem being edited in-place inside a node
+    // card), do NOT consume Delete / Backspace / R — those keys belong to
+    // the editor. GraphScene::keyPressEvent() normally short-circuits the
+    // active tool when focusItem() is non-null, so this guard is mostly
+    // defensive. Keeping it here documents the contract: this tool only
+    // owns "destructive" key handling for selection, never for in-place
+    // editing — and it stays correct if a consumer drives the tool
+    // directly without going through GraphScene.
+    if (m_scene->focusItem())
+        return;
+
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
         auto nodes = m_scene->selectedNodes();
         auto edges = m_scene->selectedEdges();
