@@ -43,6 +43,21 @@ public:
     /// spatial queries and by layout engines for spacing.
     virtual QRectF nodeBoundingRect() const = 0;
 
+    /// Preferred size for layout / auto-sizing passes.
+    /// Return an invalid QSizeF (the default) to indicate "no preference —
+    /// use whatever nodeBoundingRect() currently reports".
+    /// Layout engines or the scene may call this before placing or resizing
+    /// a node so that card-like nodes can expose their ideal dimensions
+    /// without forcing every consumer to duplicate the same content-measurement
+    /// logic.
+    virtual QSizeF preferredSize() const { return QSizeF(); }
+
+    /// Optional hook so the scene or a layout engine can ask the node to
+    /// adopt a new geometry.  Default is a no-op; nodes that support dynamic
+    /// resizing should re-layout internal content and ensure that subsequent
+    /// calls to nodeBoundingRect() reflect the requested size.
+    virtual void setGeometry(const QRectF &rect) { Q_UNUSED(rect); }
+
     /// Bridge to the Qt graphics item system. The scene calls this
     /// to add/remove the item from the QGraphicsScene.
     /// Must return a stable pointer for the lifetime of the node.

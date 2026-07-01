@@ -435,6 +435,14 @@ void GraphScene::adjustAllEdges()
 // on hover because the cursor update is driven from the base mouseMoveEvent.
 void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent *e)
 {
+    // Edge-action affordance takes precedence over the active tool.
+    if (auto hit = edgeActionAt(e->scenePos())) {
+        mousePressEventEdgeAction(hit.edge, hit.action.id, e->scenePos());
+        emit edgeActionTriggered(hit.edge, hit.action.id, e->scenePos());
+        e->accept();
+        return;
+    }
+
     if (m_activeTool)
         m_activeTool->mousePressEvent(e);
     else
@@ -538,6 +546,41 @@ void GraphScene::mouseDoubleClickEventBackground(const QPointF &)
     // preferred over a custom mouseDoubleClickEvent override because
     // the scene's empty-area heuristic is centralized in
     // isBackgroundDoubleClickPoint().
+}
+
+void GraphScene::mousePressEventEdgeAction(IGraphEdge *, const QString &,
+                                           const QPointF &)
+{
+    // Default: no-op.  Subclasses can react synchronously; the signal
+    // edgeActionTriggered() is emitted after this returns.
+}
+
+namespace {
+static constexpr qreal kEdgeActionHitRadius = 8.0;
+}
+
+GraphScene::EdgeActionHit
+GraphScene::edgeActionAt(const QPointF &scenePos) const
+{
+    for (auto *edge : m_edges) {
+        for (const EdgeAction &act : edge->edgeActions()) {
+            // Obtain the edge's path geometry via its graphics item.
+            if (auto *gi = edge->graphicsItem()) {
+                if (auto *pathItem = dynamic_cast<QGraphicsPathItem *>(gi)) {
+                    const QPainterPath &path = pathItem->path();
+                    if (!path.isEmpty()) {
+                        const QPointF pt = path.pointAtPercent(
+                            qBound(0.0, act.pos, 1.0));
+                        if (QLineF(pt, scenePos).length() <=
+                            kEdgeActionHitRadius) {
+                            return {edge, act};
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return {};
 }
 
 } // namespace Graffodil

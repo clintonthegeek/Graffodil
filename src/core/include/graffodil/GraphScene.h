@@ -159,6 +159,16 @@ signals:
     /// or zoomable anchors).
     void backgroundDoubleClicked(const QPointF &scenePos);
 
+    /// Emitted after a click lands on a declared edge-midpoint affordance
+    /// (see IGraphEdge::edgeActions()).  The protected virtual
+    /// mousePressEventEdgeAction() is invoked first.
+    ///
+    /// Consumers that want reusable "insert node between" / "delete edge"
+    /// glyphs can implement edgeActions() on their edges and react here
+    /// (or via the virtual) instead of re-implementing hit-testing in every app.
+    void edgeActionTriggered(IGraphEdge *edge, const QString &actionId,
+                             const QPointF &scenePos);
+
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *e) override;
@@ -189,6 +199,15 @@ protected:
     /// implementation is a no-op. Consumers that need neighbor-anchored
     /// placement should continue to use their own logic around placeNewNode.
     virtual void placeNodeAt(const QPointF &scenePos);
+
+    /// Subclass hook for an edge-midpoint affordance click.
+    /// Called by mousePressEvent() when the click position is within the
+    /// hit radius of a declared EdgeAction on an IGraphEdge.
+    /// Default implementation is a no-op; the signal is emitted after this
+    /// returns so any state created here is visible to signal slots.
+    virtual void mousePressEventEdgeAction(IGraphEdge *edge,
+                                           const QString &actionId,
+                                           const QPointF &scenePos);
 
     /// Subclass hook for the background double-click gesture. Called by
     /// the default mouseDoubleClickEvent() implementation when the cursor
@@ -227,6 +246,15 @@ private:
     /// stays in one place; consumers should use the signal or override
     /// the virtual instead of calling this themselves.
     bool isBackgroundDoubleClickPoint(const QPointF &scenePos) const;
+
+    /// Hit-test helper for edge-midpoint affordances.
+    /// Returns the (edge, action) pair whose computed scene position is
+    /// within the hit radius of `scenePos`, or a null result if none match.
+    struct EdgeActionHit {
+        IGraphEdge *edge = nullptr;
+        EdgeAction  action;
+    };
+    EdgeActionHit edgeActionAt(const QPointF &scenePos) const;
 
     QHash<QString, IGraphNode *> m_nodes;
     QHash<QString, IGraphEdge *> m_edges;

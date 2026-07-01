@@ -46,6 +46,12 @@ public:
 
     /// Bridge to QGraphicsItem, same pattern as IGraphNode.
     virtual QGraphicsItem *graphicsItem() = 0;
+
+    /// Optional list of reusable mid-edge affordances (insert node, delete edge, …).
+    /// Default returns empty list so existing edges are unaffected.
+    /// The scene uses these to provide a generic hit-test + dispatch surface.
+    /// Concrete visuals and action semantics remain 100 % consumer-owned.
+    virtual QList<EdgeAction> edgeActions() const { return {}; }
 };
 
 } // namespace Graffodil

@@ -288,6 +288,17 @@ slot connected to the signal — so observers see the post-subclass state.
 The virtual default is a no-op, so overriding it is purely additive: existing
 consumers connected only to the signal see no behavior change.
 
+### Edge-midpoint action affordances
+
+`IGraphEdge::edgeActions()` returns a list of lightweight `EdgeAction{id, pos}`
+descriptors.  The scene performs a small-radius hit-test around each declared
+parametric position (computed via the edge's `QGraphicsPathItem` geometry) and,
+on a match, first calls the protected virtual `mousePressEventEdgeAction` then
+emits `edgeActionTriggered`.  This gives consumers a reusable surface for
+mid-edge glyphs (insert node, delete edge, …) without each application
+re-implementing the hit-test logic.  Concrete visuals and semantics remain
+100 % consumer-owned.
+
 **Do not** reproduce the empty-area test (`items(pos).isEmpty()`) in your own
 `mouseDoubleClickEvent` override. The scene owns the definition of "is this
 the empty canvas?" — duplicating it in each consumer leads to subtle drift

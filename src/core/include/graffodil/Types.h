@@ -60,4 +60,13 @@ struct EdgeLabelStyle {
     bool rotateWithPath = false;     ///< align baseline to path tangent
 };
 
+/// Lightweight descriptor for a reusable edge-midpoint affordance.
+/// Consumers return these from IGraphEdge::edgeActions().  Graffodil only
+/// supplies the hit-test + dispatch contract; concrete visuals and semantics
+/// stay 100 % consumer-owned.
+struct EdgeAction {
+    QString id;      ///< stable identifier, e.g. "insert", "delete"
+    qreal   pos = 0.5; ///< parametric position along the edge path [0..1]
+};
+
 } // namespace Graffodil

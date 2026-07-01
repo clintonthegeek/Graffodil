@@ -1,6 +1,6 @@
 # Graffodil Roadmap & Task Status
 
-**Updated:** 2026-06-10
+**Updated:** 2026-07-01
 **Findings source:** [`docs/evaluation-2026-06-09.md`](evaluation-2026-06-09.md) (finding IDs B1–B6, A1–A9, P1–P5 referenced below)
 
 This is the **single source of truth for work status** on Graffodil. When you
@@ -30,6 +30,7 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 | 6a. Animated layout transitions | ☐ spec'd, needs plan | [spec](specs/animated-layout-transitions.md) | feature |
 | 6b. Sugiyama refactor + junction dots | ☐ spec'd, needs plan | [spec](specs/sugiyama-refactor-and-junctions.md) | A6 + ConnectorItem revival |
 | 6c. Edge labels | ☑ complete (v0.2.0) | [spec](specs/edge-labels.md) | feature |
+| 6f. Graph-editor affordances | ☑ complete (v0.2.2) | handoff 2026-07-01 | consumer feedback |
 | 6d. CMake install/export | ☐ spec'd, needs plan | [spec](specs/cmake-install-export.md) | A9 |
 | 6e. Obstacle-aware routing | ☐ spec'd, needs plan | [spec](specs/obstacle-aware-routing.md) | feature |
 | 7. Deferred / backlog | — | see below | A7 P4 P5 |
