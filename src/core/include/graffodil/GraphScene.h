@@ -169,6 +169,20 @@ signals:
     void edgeActionTriggered(IGraphEdge *edge, const QString &actionId,
                              const QPointF &scenePos);
 
+    /// Emitted after a single left-press lands on a node-internal sub-item
+    /// (see IGraphNode::subItemIdAt()). The protected virtual
+    /// mousePressEventNodeSubItem() is invoked first.
+    ///
+    /// Unlike edgeActionTriggered() / mousePressEventEdgeAction(), this hit
+    /// does NOT consume the mouse event: the press continues on to the
+    /// active tool afterward, so ordinary node selection/drag still happens
+    /// on the same click. Sub-item reaction is additive, not exclusive —
+    /// consumers that want row/port click handling (e.g. toggling a row,
+    /// starting an edge from a port) react here or in the virtual without
+    /// having to re-implement node-content hit-testing themselves.
+    void nodeSubItemClicked(IGraphNode *node, const QString &subItemId,
+                            const QPointF &scenePos);
+
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *e) override;
@@ -208,6 +222,17 @@ protected:
     virtual void mousePressEventEdgeAction(IGraphEdge *edge,
                                            const QString &actionId,
                                            const QPointF &scenePos);
+
+    /// Subclass hook for a node-internal sub-item click (row/port/etc).
+    /// Called by mousePressEvent() when IGraphNode::subItemIdAt() returns a
+    /// non-empty id for the press position. Default implementation is a
+    /// no-op; the signal is emitted after this returns so any state created
+    /// here is visible to signal slots. Unlike mousePressEventEdgeAction(),
+    /// the triggering press is NOT consumed — it still reaches the active
+    /// tool afterward (see nodeSubItemClicked() for why).
+    virtual void mousePressEventNodeSubItem(IGraphNode *node,
+                                            const QString &subItemId,
+                                            const QPointF &scenePos);
 
     /// Subclass hook for the background double-click gesture. Called by
     /// the default mouseDoubleClickEvent() implementation when the cursor
@@ -255,6 +280,15 @@ private:
         EdgeAction  action;
     };
     EdgeActionHit edgeActionAt(const QPointF &scenePos) const;
+
+    /// Hit-test helper for node-internal sub-items.
+    /// Returns the (node, subItemId) pair whose subItemIdAt() claims
+    /// `scenePos`, or a null result if none match.
+    struct NodeSubItemHit {
+        IGraphNode *node = nullptr;
+        QString     subItemId;
+    };
+    NodeSubItemHit nodeSubItemAt(const QPointF &scenePos) const;
 
     QHash<QString, IGraphNode *> m_nodes;
     QHash<QString, IGraphEdge *> m_edges;

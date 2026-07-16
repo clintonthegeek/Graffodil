@@ -55,6 +55,29 @@ public:
     QGraphicsItem *graphicsItem() override { return this; }
 };
 
+// A node exposing a single node-internal "sub-item" (e.g. a row) in its
+// top-left 40x20 corner, for the nodeSubItemClicked protocol tests below.
+class SubItemNode : public QGraphicsRectItem, public Graffodil::IGraphNode {
+public:
+    explicit SubItemNode(const QString &id = {}, const QPointF &pos = {})
+        : QGraphicsRectItem(0, 0, 100, 60), m_id(id)
+    {
+        setPos(pos);
+    }
+    QString nodeId() const override { return m_id; }
+    QList<Graffodil::Anchor> anchors() const override {
+        return Graffodil::compassAnchors(mapToScene(rect()).boundingRect());
+    }
+    QRectF nodeBoundingRect() const override { return mapToScene(rect()).boundingRect(); }
+    QGraphicsItem *graphicsItem() override { return this; }
+    QString subItemIdAt(const QPointF &scenePos) const override {
+        const QRectF subRect = mapToScene(QRectF(0, 0, 40, 20)).boundingRect();
+        return subRect.contains(scenePos) ? QStringLiteral("row:x") : QString();
+    }
+private:
+    QString m_id;
+};
+
 class AdjustRecordingEdge : public Graffodil::Test::TestEdge {
 public:
     using TestEdge::TestEdge;
@@ -622,6 +645,90 @@ private slots:
 
         sendDoubleClick(&scene, QPointF(99, 99));
         QCOMPARE(spy.count(), 1);
+    }
+
+    // -----------------------------------------------------------------
+    // Node sub-item click protocol (signal + protected virtual)
+    // -----------------------------------------------------------------
+    //
+    // Contract (mirrors edgeActionTriggered()/mousePressEventEdgeAction(),
+    // but does NOT consume the press):
+    //   * nodeSubItemClicked(node, subItemId, scenePos) fires when a single
+    //     left press lands on a point where IGraphNode::subItemIdAt()
+    //     returns a non-empty id.
+    //   * Unlike the edge-action affordance, the triggering press is NOT
+    //     consumed — it continues on to the active tool, so ordinary node
+    //     selection/drag on the same click still happens.
+    //   * The press does not fire the signal when it lands outside any
+    //     declared sub-item.
+
+    void nodeSubItemClicked_firesInsideSubItemAndPreservesSelection()
+    {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new SubItemNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+
+        QSignalSpy spy(&scene, &GraphScene::nodeSubItemClicked);
+
+        // (10, 10) is inside the node's 40x20 sub-item rect at its origin.
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(10, 10));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(10, 10));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        // IGraphNode* isn't a registered metatype (same as nodeAdded()'s
+        // IGraphNode* argument elsewhere in this file), so QSignalSpy can't
+        // marshal arg 0 into a QVariant; assert on the id/subItemId/pos
+        // arguments instead, which are.
+        QCOMPARE(spy.count(), 1);
+        const auto args = spy.takeFirst();
+        QCOMPARE(args.at(1).toString(), QString("row:x"));
+        QCOMPARE(args.at(2).toPointF(), QPointF(10, 10));
+
+        // Tool routing preserved: the same click still selects the node,
+        // proving the sub-item hit did not consume the press.
+        QCOMPARE(scene.selectedNodes().size(), 1);
+    }
+
+    void nodeSubItemClicked_doesNotFireOutsideSubItem()
+    {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new SubItemNode("n1", {0, 0});
+        n1->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(n1);
+
+        QSignalSpy spy(&scene, &GraphScene::nodeSubItemClicked);
+
+        // (80, 50) is on the node but outside its 40x20 sub-item rect.
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(80, 50));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(80, 50));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(spy.count(), 0);
+        // Selection still works normally outside the sub-item area.
+        QCOMPARE(scene.selectedNodes().size(), 1);
     }
 };
 

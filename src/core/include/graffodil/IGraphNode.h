@@ -62,6 +62,19 @@ public:
     /// to add/remove the item from the QGraphicsScene.
     /// Must return a stable pointer for the lifetime of the node.
     virtual QGraphicsItem *graphicsItem() = 0;
+
+    /// Identify a sub-item of this node's internal content (e.g. a row or
+    /// port) at the given scene position, or an empty string if the point
+    /// doesn't land on anything the node wants to react to specially.
+    /// Called by GraphScene::mousePressEvent() before routing the press to
+    /// the active tool — see GraphScene::nodeSubItemClicked(). Default
+    /// implementation returns an empty string, so nodes that don't override
+    /// this see no behavior change.
+    virtual QString subItemIdAt(const QPointF &scenePos) const
+    {
+        Q_UNUSED(scenePos);
+        return {};
+    }
 };
 
 } // namespace Graffodil

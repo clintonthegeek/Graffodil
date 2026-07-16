@@ -452,6 +452,15 @@ void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent *e)
         return;
     }
 
+    // Node sub-item hit-test. Unlike the edge-action affordance above,
+    // this does NOT return/consume the event — it fires the virtual and
+    // signal, then falls through to ordinary tool routing so selection/
+    // drag on the same click still work.
+    if (const auto hit = nodeSubItemAt(e->scenePos()); hit.node) {
+        mousePressEventNodeSubItem(hit.node, hit.subItemId, e->scenePos());
+        emit nodeSubItemClicked(hit.node, hit.subItemId, e->scenePos());
+    }
+
     if (m_activeTool)
         m_activeTool->mousePressEvent(e);
     else
@@ -583,6 +592,14 @@ void GraphScene::mousePressEventEdgeAction(IGraphEdge *, const QString &,
     // edgeActionTriggered() is emitted after this returns.
 }
 
+void GraphScene::mousePressEventNodeSubItem(IGraphNode *, const QString &,
+                                            const QPointF &)
+{
+    // Default: no-op.  Subclasses can react synchronously; the signal
+    // nodeSubItemClicked() is emitted after this returns. The triggering
+    // press is NOT consumed by the scene either way.
+}
+
 namespace {
 static constexpr qreal kEdgeActionHitRadius = 8.0;
 }
@@ -607,6 +624,19 @@ GraphScene::edgeActionAt(const QPointF &scenePos) const
                 }
             }
         }
+    }
+    return {};
+}
+
+GraphScene::NodeSubItemHit
+GraphScene::nodeSubItemAt(const QPointF &scenePos) const
+{
+    for (auto *node : m_nodes) {
+        if (!node->nodeBoundingRect().contains(scenePos))
+            continue;
+        const QString subItemId = node->subItemIdAt(scenePos);
+        if (!subItemId.isEmpty())
+            return {node, subItemId};
     }
     return {};
 }
