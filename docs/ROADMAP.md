@@ -70,6 +70,7 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 ## Status log
 
+- **2026-07-16** — Consumer-driven addition (PlanStan's sync-graph-redesign campaign, outside this roadmap's own phase sequence): node sub-item click protocol. `IGraphNode::subItemIdAt(scenePos)` (default `{}`, zero behavior change for non-overriding node types) + `GraphScene::nodeSubItemClicked` signal, mirroring the existing `edgeActions()`/`edgeActionTriggered` pattern but deliberately NOT consuming the press (selection/drag still route to the tool). Reviewed clean, 2 new `tst_graphscene` cases, full suite 16/16. Commit `9364fa4`, pushed to `main`. See `~/dev/PlanStan/docs/superpowers/plans/2026-07-15-sync-graph-redesign.md` Task 6 for the requesting plan.
 - **2026-06-10** — Phase 5 (spatial module) complete. QuadTree+SpatialGrid extracted into Graffodil::Spatial; Force links Spatial not Batch. Final commit: 477c0a2.
 - **2026-06-10** — Phase 4 (hot-path caching) complete. GraphEdgeItem path metrics + shape cached; ForceLayout mass-by-index vector; fixed nondeterministic BFS placement. Final commit: fc6d8c1.
 - **2026-06-10** — Phase 3 (scene scalability) complete. Adjacency index (O(degree) lookups) + coalesced group refresh + refreshGroupsNow(). Final commit: 82a655d.
