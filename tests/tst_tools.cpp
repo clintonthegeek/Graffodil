@@ -7,6 +7,7 @@
 #include <graffodil/GraphTool.h>
 #include <graffodil/SelectMoveTool.h>
 #include <graffodil/CreateEdgeTool.h>
+#include <graffodil/IGraphNode.h>
 #include <graffodil/PanZoomTool.h>
 #include <graffodil/CompositeTool.h>
 #include <graffodil/DefaultGraphTool.h>
@@ -139,6 +140,135 @@ private slots:
         QCoreApplication::sendEvent(&scene, &release2);
 
         QCOMPARE(spy.count(), 0);
+    }
+
+    void createEdgeToolDragDropOnEmptyEmitsDropSignal() {
+        GraphScene scene;
+        CreateEdgeTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        scene.addNode(n1);
+
+        // QSignalSpy marshals through QVariant, which needs the raw node
+        // pointer type registered; consumers using direct connections don't.
+        qRegisterMetaType<IGraphNode *>("IGraphNode*");
+        QSignalSpy dropSpy(&tool, &CreateEdgeTool::edgeDroppedOnEmpty);
+        QSignalSpy edgeSpy(&tool, &CreateEdgeTool::edgeRequested);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        // Drag well past the threshold, out over empty canvas.
+        QGraphicsSceneMouseEvent move(QEvent::GraphicsSceneMouseMove);
+        move.setScenePos(QPointF(400, 400));
+        move.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &move);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(400, 400));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(edgeSpy.count(), 0);
+        QCOMPARE(dropSpy.count(), 1);
+        const QList<QVariant> args = dropSpy.first();
+        QCOMPARE(args.at(0).value<IGraphNode *>(), static_cast<IGraphNode *>(n1));
+        QCOMPARE(args.at(2).toPointF(), QPointF(400, 400));
+
+        // The tool reset itself: the next press starts a fresh gesture
+        // rather than completing the abandoned one.
+        QGraphicsSceneMouseEvent press2(QEvent::GraphicsSceneMousePress);
+        press2.setScenePos(QPointF(50, 30));
+        press2.setButton(Qt::LeftButton);
+        press2.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press2);
+        QCOMPARE(edgeSpy.count(), 0);
+    }
+
+    void createEdgeToolClickOnEmptyEmitsDropSignal() {
+        GraphScene scene;
+        CreateEdgeTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        scene.addNode(n1);
+
+        QSignalSpy dropSpy(&tool, &CreateEdgeTool::edgeDroppedOnEmpty);
+
+        // Click-click mode: first click picks the source...
+        QGraphicsSceneMouseEvent press1(QEvent::GraphicsSceneMousePress);
+        press1.setScenePos(QPointF(50, 30));
+        press1.setButton(Qt::LeftButton);
+        press1.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press1);
+
+        QGraphicsSceneMouseEvent release1(QEvent::GraphicsSceneMouseRelease);
+        release1.setScenePos(QPointF(50, 30));
+        release1.setButton(Qt::LeftButton);
+        release1.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release1);
+
+        QCOMPARE(dropSpy.count(), 0);
+
+        // ...second click lands on the background.
+        QGraphicsSceneMouseEvent press2(QEvent::GraphicsSceneMousePress);
+        press2.setScenePos(QPointF(400, 400));
+        press2.setButton(Qt::LeftButton);
+        press2.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press2);
+
+        QCOMPARE(dropSpy.count(), 1);
+    }
+
+    void createEdgeToolIdleClickOnEmptyIsSilent() {
+        GraphScene scene;
+        CreateEdgeTool tool;
+        scene.setActiveTool(&tool);
+
+        QSignalSpy dropSpy(&tool, &CreateEdgeTool::edgeDroppedOnEmpty);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(400, 400));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QCOMPARE(dropSpy.count(), 0);
+    }
+
+    void createEdgeToolSelfLoopDragIsNotADrop() {
+        GraphScene scene;
+        CreateEdgeTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *n1 = new TestNode("n1", {0, 0});
+        scene.addNode(n1);
+
+        QSignalSpy dropSpy(&tool, &CreateEdgeTool::edgeDroppedOnEmpty);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(10, 10));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsSceneMouseEvent move(QEvent::GraphicsSceneMouseMove);
+        move.setScenePos(QPointF(60, 40));
+        move.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &move);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(60, 40));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(dropSpy.count(), 0);
     }
 
     void panZoomToolActivates() {

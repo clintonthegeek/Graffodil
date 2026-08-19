@@ -521,6 +521,10 @@ signals:
 - Click near node edge: snap to nearest anchor, highlight
 - Drag: dashed preview line following cursor
 - Release on target node: emit `edgeRequested` with source/target and sides
+- Both gestures are supported: click-click (click source, click target) and
+  press-drag-release. A sub-threshold drag falls through into click-click,
+  unless `setDragOnly(true)`.
+- End on empty canvas: emit `edgeDroppedOnEmpty` (see the catalog below)
 - Escape: cancel
 - Prevents self-loops
 
@@ -566,6 +570,12 @@ Click-without-drag does not emit `dragBegan` / `dragEnded`. Multi-select drag em
 | Signal | When | Typical undo action |
 |---|---|---|
 | `edgeRequested(source, sourceAnchorId, target, targetAnchorId)` | User completes a click-click or drag gesture between two distinct nodes | Construct the edge, add it to scene + model, push a create command |
+| `edgeDroppedOnEmpty(source, sourceAnchorId, scenePos)` | An in-progress gesture ends over empty canvas: drag released with no node under the cursor, or (click-click) the second click lands on the background | Offer "create a node here and connect it" — e.g. a context menu at `scenePos`; then create node + edge yourself and push one macro |
+
+`edgeDroppedOnEmpty` fires *after* the tool has reset, so a handler may run a
+modal menu or mutate the scene freely. Leaving it unconnected means
+drop-on-empty just cancels the gesture. A drag that starts and ends on the
+same node is a rejected self-loop, not a drop — it cancels silently.
 
 **`GraphScene`**
 

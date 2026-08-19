@@ -22,7 +22,7 @@ Core + Extensions model. See `docs/graffodil-design.md` for the full spec.
 - `Graffodil::Circular` — Circular layout (depends: Core)
 - `Graffodil::Batch` — Batch rendering for 10K+ nodes (depends: Core)
 
-## Current Status (2026-06-09)
+## Current Status (2026-08-19)
 
 The library is feature-complete against `docs/graffodil-design.md` and got a
 full evaluation on 2026-06-09 (`docs/evaluation-2026-06-09.md`: bugs,
@@ -30,12 +30,14 @@ architecture findings, performance items, feature avenues).
 
 **Task status lives in [`docs/ROADMAP.md`](docs/ROADMAP.md) — the single
 source of truth.** Start there; it sequences the phases, links every plan and
-spec, and carries the status log. Next up: **Phase 1, bugfix punch list**
-(`docs/superpowers/plans/2026-06-09-bugfix-punchlist.md`).
+spec, and carries the status log. Phases 1–5 plus 6c/6f are complete; the open
+phases are 6a, 6b, 6d, 6e (all spec'd, each needs a plan).
 
-Downstream consumers (Corbomite, PlanStan/WildPalms) migrate onto Graffodil
-after Phases 1–5 + the CMake install spec land; the only deliberate API
-deprecations are in Phase 2.
+Downstream consumers migrate now, not later: as of 2026-08-19 Corbomite's
+canvas adoption is underway and consumes Graffodil as a **git submodule +
+`add_subdirectory`** (6d/install is for packagers, not a gate). Consumer asks
+arrive as handoff docs in `docs/handoff/` — deference to a live consumer's
+needs outranks API stability at this stage.
 
 ## Document Map
 

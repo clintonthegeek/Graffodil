@@ -24,6 +24,11 @@ class AnchorHighlight;
 ///
 /// While creation is in progress, hovering a target node snaps the
 /// preview line to the nearest anchor on that node and highlights it.
+///
+/// **Drop on empty canvas:** ending either gesture over empty space (drag
+/// release, or the next click in click-click mode) resets the tool and
+/// emits `edgeDroppedOnEmpty` so the consumer can offer "create a node
+/// here and connect it" — see that signal's docs.
 class CreateEdgeTool : public GraphTool {
     Q_OBJECT
 public:
@@ -56,11 +61,25 @@ signals:
     void edgeRequested(IGraphNode *source, const QString &sourceAnchorId,
                        IGraphNode *target, const QString &targetAnchorId);
 
+    /// An in-progress edge gesture ended over empty canvas: drag released
+    /// with no node under the cursor, or (click-click mode) the second
+    /// click landed on the background. `source`/`sourceAnchorId` are the
+    /// endpoint the gesture started from; `scenePos` is where it ended.
+    ///
+    /// The tool has already reset itself by the time this fires, so a
+    /// handler is free to run a modal menu, create a node at `scenePos`,
+    /// and then build the edge itself — the tool never mutates the model.
+    /// Not connecting it means drop-on-empty simply cancels, which is the
+    /// historical behaviour.
+    void edgeDroppedOnEmpty(IGraphNode *source, const QString &sourceAnchorId,
+                            const QPointF &scenePos);
+
 private:
     IGraphNode *findNodeAt(const QPointF &scenePos) const;
     Anchor nearestAnchor(IGraphNode *node, const QPointF &scenePos) const;
     void updatePreview(const QPointF &cursorScenePos);
     void commitEdge(IGraphNode *target, const QPointF &cursorScenePos);
+    void dropOnEmpty(const QPointF &cursorScenePos);
     void cancel();
 
     IGraphNode *m_sourceNode = nullptr;

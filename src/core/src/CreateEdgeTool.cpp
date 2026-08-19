@@ -80,7 +80,8 @@ void CreateEdgeTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
     IGraphNode *node = findNodeAt(event->scenePos());
 
     if (!node) {
-        cancel();
+        // Click-click mode: the second click landed on the background.
+        dropOnEmpty(event->scenePos());
         return;
     }
 
@@ -128,7 +129,12 @@ void CreateEdgeTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     }
 
     IGraphNode *target = findNodeAt(event->scenePos());
-    if (!target || target == m_sourceNode) {
+    if (!target) {
+        dropOnEmpty(event->scenePos());
+        return;
+    }
+    if (target == m_sourceNode) {
+        // Self-loop: a rejected gesture, not a drop on empty canvas.
         cancel();
         return;
     }
@@ -142,6 +148,19 @@ void CreateEdgeTool::commitEdge(IGraphNode *target, const QPointF &cursorScenePo
         emit edgeRequested(m_sourceNode, m_sourceAnchorId, target, tgt.id);
     }
     cancel();
+}
+
+void CreateEdgeTool::dropOnEmpty(const QPointF &cursorScenePos)
+{
+    if (!m_sourceNode)
+        return;
+
+    IGraphNode *source = m_sourceNode;
+    const QString anchorId = m_sourceAnchorId;
+    // Reset before emitting: the handler may run a modal menu or add nodes
+    // to the scene, and must not find the tool mid-gesture.
+    cancel();
+    emit edgeDroppedOnEmpty(source, anchorId, cursorScenePos);
 }
 
 void CreateEdgeTool::updatePreview(const QPointF &cursorScenePos)

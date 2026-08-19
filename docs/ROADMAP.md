@@ -31,7 +31,7 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 | 6b. Sugiyama refactor + junction dots | ☐ spec'd, needs plan | [spec](specs/sugiyama-refactor-and-junctions.md) | A6 + ConnectorItem revival |
 | 6c. Edge labels | ☑ complete (v0.2.0) | [spec](specs/edge-labels.md) | feature |
 | 6f. Graph-editor affordances | ☑ complete (v0.2.2) | handoff 2026-07-01 | consumer feedback |
-| 6d. CMake install/export | ☐ spec'd, needs plan | [spec](specs/cmake-install-export.md) | A9 |
+| 6d. CMake install/export | ☐ spec'd, needs plan — **no longer gates consumer migrations** (2026-08-19: submodule + `add_subdirectory` consumption blessed) | [spec](specs/cmake-install-export.md) | A9 |
 | 6e. Obstacle-aware routing | ☐ spec'd, needs plan | [spec](specs/obstacle-aware-routing.md) | feature |
 | 7. Deferred / backlog | — | see below | A7 P4 P5 |
 
@@ -50,8 +50,9 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
   Phases 2+3 (waypoint delivery, adjacency index). 6d should land **before the
   consumer migrations** begin. 6e depends on Phase 5.
 - **Consumer migrations** (Corbomite Canvas/ForceGraph, PlanStan PERT/Gantt) are
-  tracked in those repos; do them after Phases 1–5 + 6d so the API they bind to
-  is final. Phase 2 contains the only breaking-ish API change (deprecations).
+  tracked in those repos; do them after Phases 1–5. 6d was originally a gate,
+  but as of 2026-08-19 submodule + `add_subdirectory` consumption is the blessed
+  path (see the handoff reply below), so 6d now serves packagers only. Phase 2 contains the only breaking-ish API change (deprecations).
 
 ## Phase 7 — deferred / backlog (no spec yet; write one before starting)
 
@@ -69,6 +70,8 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
   now; document in design doc if it ever bites a consumer.
 
 ## Status log
+
+- **2026-08-19** — Consumer-driven (Corbomite Cluster M canvas adoption; [their handoff](../../Corbomite/docs/handoff/2026-08-19-to-graffodil-for-canvas-adoption.md), [our reply](handoff/2026-08-19-reply-to-corbomite-canvas-adoption.md)). Two answers, one code change. (1) **Consumption:** submodule + `add_subdirectory` blessed via `git@github.com:clintonthegeek/Graffodil.git` (Graffodil's own `origin`; Codeberg secondary; both public + anon-clonable). 6d de-gated. (2) **Edge gesture:** press-drag-release already worked (plus `setDragOnly()` for strict Obsidian semantics); the real gap was release-on-empty silently cancelling. Added `CreateEdgeTool::edgeDroppedOnEmpty(source, sourceAnchorId, scenePos)` — fires on drag-release or click-click second click over empty canvas, after the tool resets, so handlers can run a modal create-menu; self-loop rejection deliberately excluded. Additive: unconnected = old behaviour. 4 new `tst_tools` cases, suite 16/16. Version bumped to **v0.2.3** and tagged. Design doc §CreateEdgeTool + mutation signal catalog updated. `IAlignmentStrategy` needed no change — it already exists for exactly this.
 
 - **2026-07-16** — Consumer-driven addition (PlanStan's sync-graph-redesign campaign, outside this roadmap's own phase sequence): node sub-item click protocol. `IGraphNode::subItemIdAt(scenePos)` (default `{}`, zero behavior change for non-overriding node types) + `GraphScene::nodeSubItemClicked` signal, mirroring the existing `edgeActions()`/`edgeActionTriggered` pattern but deliberately NOT consuming the press (selection/drag still route to the tool). Reviewed clean, 2 new `tst_graphscene` cases, full suite 16/16. Commit `9364fa4`, pushed to `main`. See `~/dev/PlanStan/docs/superpowers/plans/2026-07-15-sync-graph-redesign.md` Task 6 for the requesting plan.
 - **2026-06-10** — Phase 5 (spatial module) complete. QuadTree+SpatialGrid extracted into Graffodil::Spatial; Force links Spatial not Batch. Final commit: 477c0a2.
