@@ -1,4 +1,4 @@
-add_library(graffodil-spatial STATIC)
+add_library(graffodil-spatial SHARED)
 add_library(Graffodil::Spatial ALIAS graffodil-spatial)
 set_target_properties(graffodil-spatial PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(graffodil-spatial
@@ -10,3 +10,11 @@ target_sources(graffodil-spatial PRIVATE
     include/graffodil/QuadTree.h
     include/graffodil/SpatialGrid.h
 )
+
+if(DEFINED KDE_INSTALL_LIBDIR)
+    install(TARGETS graffodil-spatial
+        RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
+    )
+endif()
