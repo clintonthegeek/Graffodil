@@ -71,6 +71,11 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 ## Status log
 
+- **2026-10-19** — Consumer-driven bug fixes from Corbomite's consolidated asks.
+  **ASK-M5:** `~BatchRenderer` walked scene items that `~QGraphicsScene` had
+  already destroyed (use-after-free on every batch-mode teardown); fixed with a
+  `QPointer` + `scene::destroyed()` latch and null guards, reproduction in
+  `tst_batchrenderer` (see `docs/bugs/batchrenderer-teardown-touches-destroyed-items.md`).
 - **2026-08-19** — Consumer-driven (Corbomite Cluster M canvas adoption; [their handoff](../../Corbomite/docs/handoff/2026-08-19-to-graffodil-for-canvas-adoption.md), [our reply](handoff/2026-08-19-reply-to-corbomite-canvas-adoption.md)). Two answers, one code change. (1) **Consumption:** submodule + `add_subdirectory` blessed via `git@github.com:clintonthegeek/Graffodil.git` (Graffodil's own `origin`; Codeberg secondary; both public + anon-clonable). 6d de-gated. (2) **Edge gesture:** press-drag-release already worked (plus `setDragOnly()` for strict Obsidian semantics); the real gap was release-on-empty silently cancelling. Added `CreateEdgeTool::edgeDroppedOnEmpty(source, sourceAnchorId, scenePos)` — fires on drag-release or click-click second click over empty canvas, after the tool resets, so handlers can run a modal create-menu; self-loop rejection deliberately excluded. Additive: unconnected = old behaviour. 4 new `tst_tools` cases, suite 16/16. Version bumped to **v0.2.3** and tagged. Design doc §CreateEdgeTool + mutation signal catalog updated. `IAlignmentStrategy` needed no change — it already exists for exactly this.
 
 - **2026-07-16** — Consumer-driven addition (PlanStan's sync-graph-redesign campaign, outside this roadmap's own phase sequence): node sub-item click protocol. `IGraphNode::subItemIdAt(scenePos)` (default `{}`, zero behavior change for non-overriding node types) + `GraphScene::nodeSubItemClicked` signal, mirroring the existing `edgeActions()`/`edgeActionTriggered` pattern but deliberately NOT consuming the press (selection/drag still route to the tool). Reviewed clean, 2 new `tst_graphscene` cases, full suite 16/16. Commit `9364fa4`, pushed to `main`. See `~/dev/PlanStan/docs/superpowers/plans/2026-07-15-sync-graph-redesign.md` Task 6 for the requesting plan.

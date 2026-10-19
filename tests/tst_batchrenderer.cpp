@@ -50,6 +50,24 @@ private slots:
         QVERIFY(n2->graphicsItem()->isVisible());
     }
 
+    // A BatchRenderer is parented to the scene, so ~QGraphicsScene destroys
+    // the items and only then deletes the renderer (a child QObject). Its
+    // destructor must not walk items that are already gone.
+    void sceneDeletedInBatchModeDoesNotTouchDestroyedItems() {
+        auto *scene = new GraphScene;
+        auto *n1 = new TestNode("n1", {0, 0});
+        auto *n2 = new TestNode("n2", {100, 0});
+        scene->addNode(n1);
+        scene->addNode(n2);
+        scene->addEdge(new TestEdge("e1", n1, n2));
+
+        auto *renderer = new BatchRenderer(scene);
+        renderer->setBatchMode(true);
+        QVERIFY(renderer->isBatchMode());
+
+        delete scene;   // destroys the items, then the renderer child
+    }
+
     void synchronizeUpdatesPositions() {
         GraphScene scene;
         auto *n1 = new TestNode("n1", {0, 0});

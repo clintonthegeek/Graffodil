@@ -1,4 +1,6 @@
 #include <graffodil/BatchRenderer.h>
+
+#include <QPointer>
 #include <graffodil/GraphScene.h>
 #include <graffodil/IGraphNode.h>
 #include <graffodil/IRenderableCache.h>
@@ -10,7 +12,13 @@ namespace Graffodil {
 
 class BatchRenderer::Private {
 public:
-    GraphScene *scene = nullptr;
+    // A child QObject of the scene is deleted from ~QObject, i.e. after
+    // ~QGraphicsScene has destroyed the items and after GraphScene's own
+    // registries are gone. Touching the scene there walks freed memory, so the
+    // scene's destroyed() (emitted before its children are deleted) latches
+    // this flag and the destructor becomes a no-op.
+    QPointer<GraphScene> scene;
+    bool sceneDestroyed = false;
     BatchNodeItem *nodeItem = nullptr;
     BatchEdgeItem *edgeItem = nullptr;
     bool batchMode = false;
@@ -23,16 +31,27 @@ public:
 BatchRenderer::BatchRenderer(GraphScene *scene) : QObject(scene), d(new Private)
 {
     d->scene = scene;
+    if (scene) {
+        connect(scene, &QObject::destroyed, this, [this] {
+            d->sceneDestroyed = true;
+            d->scene = nullptr;
+        });
+    }
 }
 
 BatchRenderer::~BatchRenderer()
 {
-    setBatchMode(false);
+    // Restore the individual items only when the scene still owns them. During
+    // scene teardown the items (and GraphScene's registries) are already gone.
+    if (d->scene && !d->sceneDestroyed)
+        setBatchMode(false);
     delete d;
 }
 
 void BatchRenderer::setBatchMode(bool enabled)
 {
+    if (!d->scene)
+        return;
     if (d->batchMode == enabled)
         return;
 
@@ -40,10 +59,14 @@ void BatchRenderer::setBatchMode(bool enabled)
 
     if (enabled) {
         // Hide individual items
-        for (auto *node : d->scene->nodes())
-            node->graphicsItem()->setVisible(false);
-        for (auto *edge : d->scene->edges())
-            edge->graphicsItem()->setVisible(false);
+        for (auto *node : d->scene->nodes()) {
+            if (auto *item = node ? node->graphicsItem() : nullptr)
+                item->setVisible(false);
+        }
+        for (auto *edge : d->scene->edges()) {
+            if (auto *item = edge ? edge->graphicsItem() : nullptr)
+                item->setVisible(false);
+        }
 
         // Create batch items
         d->nodeItem = new BatchNodeItem();
@@ -66,10 +89,14 @@ void BatchRenderer::setBatchMode(bool enabled)
         }
 
         // Show individual items
-        for (auto *node : d->scene->nodes())
-            node->graphicsItem()->setVisible(true);
-        for (auto *edge : d->scene->edges())
-            edge->graphicsItem()->setVisible(true);
+        for (auto *node : d->scene->nodes()) {
+            if (auto *item = node ? node->graphicsItem() : nullptr)
+                item->setVisible(true);
+        }
+        for (auto *edge : d->scene->edges()) {
+            if (auto *item = edge ? edge->graphicsItem() : nullptr)
+                item->setVisible(true);
+        }
     }
 }
 
@@ -82,6 +109,9 @@ void BatchRenderer::setAutoThreshold(int nodeCount)
 
 void BatchRenderer::synchronize()
 {
+    if (!d->scene)
+        return;
+
     // Auto-threshold check
     if (d->autoThreshold > 0) {
         bool shouldBatch = d->scene->nodes().size() >= d->autoThreshold;
@@ -102,6 +132,8 @@ void BatchRenderer::synchronize()
 
     for (int i = 0; i < sceneNodes.size(); ++i) {
         auto *node = sceneNodes[i];
+        if (!node || !node->graphicsItem())
+            continue;
         BatchNodeItem::NodeData nd;
         nd.position = node->graphicsItem()->pos();
         nd.radius = qMax(node->nodeBoundingRect().width(), node->nodeBoundingRect().height()) / 2.0;
@@ -124,6 +156,10 @@ void BatchRenderer::synchronize()
     edgeData.reserve(sceneEdges.size());
 
     for (auto *edge : sceneEdges) {
+        if (!edge || !edge->sourceNode() || !edge->targetNode()
+            || !edge->sourceNode()->graphicsItem()
+            || !edge->targetNode()->graphicsItem())
+            continue;
         BatchEdgeItem::EdgeData ed;
         QPointF srcPos = edge->sourceNode()->graphicsItem()->pos();
         QPointF tgtPos = edge->targetNode()->graphicsItem()->pos();
