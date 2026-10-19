@@ -615,6 +615,8 @@ static constexpr qreal kEdgeActionHitRadius = 8.0;
 GraphScene::EdgeActionHit
 GraphScene::edgeActionAt(const QPointF &scenePos) const
 {
+    // Deterministic winner among overlapping affordances (m_edges is a QHash).
+    EdgeActionHit best;
     for (auto *edge : m_edges) {
         for (const EdgeAction &act : edge->edgeActions()) {
             // Obtain the edge's path geometry via its graphics item.
@@ -626,29 +628,35 @@ GraphScene::edgeActionAt(const QPointF &scenePos) const
                         // coordinates (nodeSubItemAt does the same).
                         const QPointF pt = pathItem->mapToScene(
                             path.pointAtPercent(qBound(0.0, act.pos, 1.0)));
-                        if (QLineF(pt, scenePos).length() <=
-                            kEdgeActionHitRadius) {
-                            return {edge, act};
+                        if (QLineF(pt, scenePos).length() <= kEdgeActionHitRadius
+                            && (!best.edge || edge->edgeId() < best.edge->edgeId())) {
+                            best = {edge, act};
                         }
                     }
                 }
             }
         }
     }
-    return {};
+    return best;
 }
 
 GraphScene::NodeSubItemHit
 GraphScene::nodeSubItemAt(const QPointF &scenePos) const
 {
+    // m_nodes is a QHash, so iteration order varies run to run. Overlapping
+    // nodes therefore picked an unspecified winner; the smallest node id wins
+    // deterministically instead.
+    NodeSubItemHit best;
     for (auto *node : m_nodes) {
         if (!node->nodeBoundingRect().contains(scenePos))
             continue;
         const QString subItemId = node->subItemIdAt(scenePos);
-        if (!subItemId.isEmpty())
-            return {node, subItemId};
+        if (subItemId.isEmpty())
+            continue;
+        if (!best.node || node->nodeId() < best.node->nodeId())
+            best = {node, subItemId};
     }
-    return {};
+    return best;
 }
 
 } // namespace Graffodil

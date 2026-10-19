@@ -23,6 +23,13 @@ four correctness/hygiene defects from Corbomite's consolidated asks
   destroyed mid-gesture left the item in the scene. The destructor now takes it
   back like it already did for the anchor highlight. Not observable in a plain
   test — it needs a leak checker.
+- Overlapping-node hit-testing was resolved by QHash iteration order, so the
+  winner changed with the hash seed (and with any Qt that randomises it).
+  `nodeSubItemAt()` and `edgeActionAt()` now pick the smallest node/edge id
+  deterministically; the tools' `findNodeAt()` was already deterministic because
+  it walks `scene->items()` in stacking order. Test: `tst_graphscene::
+  overlappingNodesHaveADeterministicWinner` varies the seed and fails on the
+  parent commit (winner "b" instead of "a").
 - `SugiyamaLayout`'s layer assignment (ASK-M19) was a single longest-path pass
   over a partial topological order, so a node whose predecessor had not been
   visited stayed in the same layer and its edge spanned zero layers. It now

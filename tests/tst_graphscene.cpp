@@ -100,6 +100,19 @@ public:
     }
 };
 
+// Records which node the scene's sub-item press hook resolved.
+class SubItemRecordingScene : public Graffodil::GraphScene {
+public:
+    QString lastName;
+    QString lastSubItem;
+    void mousePressEventNodeSubItem(Graffodil::IGraphNode *node, const QString &subItemId,
+                                    const QPointF &) override
+    {
+        lastName = node ? node->nodeId() : QString();
+        lastSubItem = subItemId;
+    }
+};
+
 // A node that reports no anchors at all.
 class AnchorlessNode : public QGraphicsRectItem, public Graffodil::IGraphNode {
 public:
@@ -688,6 +701,39 @@ private slots:
     //     selection/drag on the same click still happens.
     //   * The press does not fire the signal when it lands outside any
     //     declared sub-item.
+
+    // Punch list: the sub-item hit-test iterated a QHash, so two overlapping
+    // nodes picked an unspecified winner that varied run to run. The smallest
+    // node id now wins, deterministically.
+    void overlappingNodesHaveADeterministicWinner()
+    {
+        // Vary the hash seed: bucket order changes, the winner must not.
+        for (const int seed : {1, 42, 1234, 7}) {
+        QT_WARNING_PUSH
+        QT_WARNING_DISABLE_DEPRECATED
+        qSetGlobalQHashSeed(seed);   // bucket order must not decide the winner
+        QT_WARNING_POP
+        SubItemRecordingScene scene;
+        auto *b = new SubItemNode("b", {0, 0});
+        auto *a = new SubItemNode("a", {0, 0});   // fully overlapping
+        scene.addNode(b);
+        scene.addNode(a);
+
+        for (int i = 0; i < 8; ++i) {
+            QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+            press.setScenePos(QPointF(10, 10));   // inside both sub-items
+            press.setButton(Qt::LeftButton);
+            press.setButtons(Qt::LeftButton);
+            QCoreApplication::sendEvent(&scene, &press);
+            QCOMPARE(scene.lastName, QStringLiteral("a"));
+            QCOMPARE(scene.lastSubItem, QStringLiteral("row:x"));
+        }
+        }
+        QT_WARNING_PUSH
+        QT_WARNING_DISABLE_DEPRECATED
+        qSetGlobalQHashSeed(-1);
+        QT_WARNING_POP
+    }
 
     // Punch list: clearGraph() emitted while the registries still held the
     // items, so a slot that re-entered saw half-cleared state.
