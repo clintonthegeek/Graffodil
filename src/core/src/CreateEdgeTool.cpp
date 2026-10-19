@@ -23,11 +23,20 @@ CreateEdgeTool::~CreateEdgeTool()
     // If the scene was destroyed first, QPointer has already been cleared
     // and we have nothing to clean up. Otherwise take the item back from
     // the scene (if still attached) and delete it ourselves.
-    if (!m_highlight)
-        return;
-    if (m_highlight->scene())
-        m_highlight->scene()->removeItem(m_highlight);
-    delete m_highlight;
+    if (m_highlight) {
+        if (m_highlight->scene())
+            m_highlight->scene()->removeItem(m_highlight);
+        delete m_highlight;
+        m_highlight = nullptr;
+    }
+    // The preview line is only freed by cancel(), so a tool destroyed
+    // mid-gesture leaked it into the scene (punch list).
+    if (m_previewLine) {
+        if (m_previewLine->scene())
+            m_previewLine->scene()->removeItem(m_previewLine);
+        delete m_previewLine;
+        m_previewLine = nullptr;
+    }
 }
 
 void CreateEdgeTool::activate(GraphScene *scene)

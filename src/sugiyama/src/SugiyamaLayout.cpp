@@ -483,15 +483,36 @@ LayoutResult SugiyamaLayout::compute()
         QHash<QString, int> layer;
         int maxLayer = 0;
 
-        for (const QString &uid : compTopo) {
-            int myLayer = 0;
-            for (const QString &pred : predecessors.value(uid)) {
-                if (layer.contains(pred))
-                    myLayer = qMax(myLayer, layer[pred] + 1);
+        // Longest-path layering relaxes to a fixed point. A single pass over
+        // compTopo cannot do that: topologicalSort() returns a *partial* order
+        // when the component has a cycle, so a predecessor appearing later in
+        // the order was silently skipped, its layer came out too small, and its
+        // outgoing edges got span <= 0 with no waypoints. Self-loops are skipped
+        // (a node cannot precede itself); a longer cycle is spaced one layer per
+        // edge, bounded by the pass cap below.
+        bool layersChanged = true;
+        int passes = 0;
+        const int maxPasses = compSet.size() + 1;
+        while (layersChanged && passes++ < maxPasses) {
+            layersChanged = false;
+            for (const QString &uid : component) {
+                int myLayer = 0;
+                for (const QString &pred : predecessors.value(uid)) {
+                    if (pred == uid)
+                        continue;
+                    const auto predIt = layer.constFind(pred);
+                    if (predIt != layer.constEnd())
+                        myLayer = qMax(myLayer, predIt.value() + 1);
+                }
+                const auto current = layer.constFind(uid);
+                if (current == layer.constEnd() || current.value() != myLayer) {
+                    layer[uid] = myLayer;
+                    layersChanged = true;
+                }
             }
-            layer[uid] = myLayer;
-            maxLayer = qMax(maxLayer, myLayer);
         }
+        for (auto it = layer.constBegin(); it != layer.constEnd(); ++it)
+            maxLayer = qMax(maxLayer, it.value());
 
         // ---- Phase 2b: Vertex promotion ----
         {

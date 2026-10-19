@@ -29,6 +29,76 @@ private slots:
         QVERIFY(result.nodePositions["B"].x() < result.nodePositions["C"].x());
     }
 
+    // Punch list (ASK-M19): topologicalSort() returns a partial order (or the
+    // all-nodes fallback) when a component has a cycle, so the single
+    // longest-path pass skipped a predecessor that had not been visited yet and
+    // left both endpoints of an edge in the same layer — span 0, no waypoints.
+    // Here Y has a self-loop and an edge to X: Y must sit one layer left of X.
+    void selfLoopDoesNotCollapseItsEdge()
+    {
+        TestNode x("X"), y("Y");
+        TestEdge selfLoop("loop", &y, &y);
+        TestEdge yToX("yx", &y, &x);
+
+        SugiyamaLayout layout;
+        layout.setNodeSize({100, 60});
+        layout.setSpacing(60, 40);
+        layout.setNodes({&x, &y});
+        layout.setEdges({&selfLoop, &yToX});
+
+        const auto result = layout.compute();
+        QCOMPARE(result.nodePositions.size(), 2);
+        QVERIFY2(result.nodePositions["X"].x() > result.nodePositions["Y"].x(),
+                 qPrintable(QStringLiteral("X at %1, Y at %2")
+                                .arg(result.nodePositions["X"].x())
+                                .arg(result.nodePositions["Y"].x())));
+    }
+
+    // A cycle elsewhere must not disturb a plain chain's layering.
+    void cycleDoesNotDisturbTheChain()
+    {
+        TestNode a("A"), b("B"), c("C"), loop("S");
+        TestEdge e1("e1", &a, &b), e2("e2", &b, &c);
+        TestEdge selfLoop("loop", &loop, &loop), loopOut("out", &loop, &c);
+
+        SugiyamaLayout layout;
+        layout.setNodeSize({100, 60});
+        layout.setSpacing(60, 40);
+        layout.setNodes({&a, &b, &c, &loop});
+        layout.setEdges({&e1, &e2, &selfLoop, &loopOut});
+
+        const auto result = layout.compute();
+        QCOMPARE(result.nodePositions.size(), 4);
+        QVERIFY(result.nodePositions["A"].x() < result.nodePositions["B"].x());
+        QVERIFY(result.nodePositions["B"].x() < result.nodePositions["C"].x());
+        QVERIFY(std::isfinite(result.nodePositions["S"].x()));
+    }
+
+    // A 2-cycle plus a chain: the chain's layering is still one layer per edge
+    // and every node gets a finite layer.
+    void twoCycleKeepsTheChainLayered()
+    {
+        TestNode a("A"), b("B"), c("C");
+        TestNode x("X"), y("Y");
+        TestEdge e1("e1", &a, &b), e2("e2", &b, &c);
+        TestEdge xy("xy", &x, &y), yx("yx", &y, &x);
+
+        SugiyamaLayout layout;
+        layout.setNodeSize({100, 60});
+        layout.setSpacing(60, 40);
+        layout.setNodes({&a, &b, &c, &x, &y});
+        layout.setEdges({&e1, &e2, &xy, &yx});
+
+        const auto result = layout.compute();
+        QCOMPARE(result.nodePositions.size(), 5);
+        QVERIFY(result.nodePositions["A"].x() < result.nodePositions["B"].x());
+        QVERIFY(result.nodePositions["B"].x() < result.nodePositions["C"].x());
+        for (const QPointF &p : result.nodePositions) {
+            QVERIFY(std::isfinite(p.x()));
+            QVERIFY(std::isfinite(p.y()));
+        }
+    }
+
     void nodesDoNotOverlap() {
         TestNode a("A"), b("B"), c("C"), d("D");
         TestEdge e1("e1", &a, &b), e2("e2", &a, &c), e3("e3", &b, &d), e4("e4", &c, &d);
