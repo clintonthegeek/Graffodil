@@ -82,7 +82,11 @@ private:
     void dropOnEmpty(const QPointF &cursorScenePos);
     void cancel();
 
-    IGraphNode *m_sourceNode = nullptr;
+    /// Resolved through the scene at each use: the host may destroy the source
+    /// node mid-gesture, and a raw pointer would then dangle on every move.
+    IGraphNode *sourceNode() const;
+    QString m_sourceNodeId;
+    bool m_hasSource = false;
     QString m_sourceAnchorId;
     QPointF m_pressScenePos;
     bool m_sawDrag = false;

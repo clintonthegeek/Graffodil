@@ -85,8 +85,9 @@ void CreateEdgeTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
         return;
     }
 
-    if (!m_sourceNode) {
-        m_sourceNode = node;
+    if (!m_hasSource) {
+        m_hasSource = true;
+        m_sourceNodeId = node->nodeId();
         const Anchor a = nearestAnchor(node, event->scenePos());
         m_sourceAnchorId = a.id;
         m_pressScenePos = event->scenePos();
@@ -97,7 +98,7 @@ void CreateEdgeTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
         m_previewLine->setZValue(1000);
 
         if (m_highlight) {
-            m_highlight->showAnchors(m_sourceNode);
+            m_highlight->showAnchors(node);
             m_highlight->setActiveAnchor(m_sourceAnchorId);
         }
     } else {
@@ -107,7 +108,7 @@ void CreateEdgeTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
 
 void CreateEdgeTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
-    if (m_sourceNode
+    if (m_hasSource
         && (event->scenePos() - m_pressScenePos).manhattanLength() > kDragThreshold)
         m_sawDrag = true;
 
@@ -116,8 +117,14 @@ void CreateEdgeTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 
 void CreateEdgeTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
-    if (!m_sourceNode || event->button() != Qt::LeftButton)
+    if (event->button() != Qt::LeftButton)
         return;
+    IGraphNode *source = sourceNode();
+    if (!source) {
+        // The source was destroyed mid-gesture: nothing to complete.
+        cancel();
+        return;
+    }
 
     if (!m_sawDrag) {
         // Drag-only: release without dragging cancels the creation.
@@ -133,7 +140,7 @@ void CreateEdgeTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
         dropOnEmpty(event->scenePos());
         return;
     }
-    if (target == m_sourceNode) {
+    if (target == source) {
         // Self-loop: a rejected gesture, not a drop on empty canvas.
         cancel();
         return;
@@ -143,19 +150,20 @@ void CreateEdgeTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 
 void CreateEdgeTool::commitEdge(IGraphNode *target, const QPointF &cursorScenePos)
 {
-    if (target && target != m_sourceNode) {
+    IGraphNode *source = sourceNode();
+    if (target && target != source && source) {
         const Anchor tgt = nearestAnchor(target, cursorScenePos);
-        emit edgeRequested(m_sourceNode, m_sourceAnchorId, target, tgt.id);
+        emit edgeRequested(source, m_sourceAnchorId, target, tgt.id);
     }
     cancel();
 }
 
 void CreateEdgeTool::dropOnEmpty(const QPointF &cursorScenePos)
 {
-    if (!m_sourceNode)
+    IGraphNode *source = sourceNode();
+    if (!source)
         return;
 
-    IGraphNode *source = m_sourceNode;
     const QString anchorId = m_sourceAnchorId;
     // Reset before emitting: the handler may run a modal menu or add nodes
     // to the scene, and must not find the tool mid-gesture.
@@ -186,9 +194,9 @@ void CreateEdgeTool::updatePreview(const QPointF &cursorScenePos)
     if (hovered)
         hoverAnchor = nearestAnchor(hovered, cursorScenePos);
 
-    if (m_sourceNode) {
+    if (IGraphNode *source = sourceNode()) {
         QPointF end = cursorScenePos;
-        if (hovered && hovered != m_sourceNode)
+        if (hovered && hovered != source)
             end = hoverAnchor.scenePos;
         if (m_previewLine) {
             // For swivel sources (empty id), resolve the start dynamically
@@ -196,17 +204,17 @@ void CreateEdgeTool::updatePreview(const QPointF &cursorScenePos)
             // node's boundary instead of collapsing to (0,0).
             QPointF start;
             if (m_sourceAnchorId.isEmpty())
-                start = m_sourceNode->anchorToward(end).scenePos;
+                start = source->anchorToward(end).scenePos;
             else
-                start = m_sourceNode->anchor(m_sourceAnchorId).scenePos;
+                start = source->anchor(m_sourceAnchorId).scenePos;
             m_previewLine->setLine(QLineF(start, end));
         }
         if (m_highlight) {
-            if (hovered && hovered != m_sourceNode) {
+            if (hovered && hovered != source) {
                 m_highlight->showAnchors(hovered);
                 m_highlight->setActiveAnchor(hoverAnchor.id);
             } else {
-                m_highlight->showAnchors(m_sourceNode);
+                m_highlight->showAnchors(source);
                 m_highlight->setActiveAnchor(m_sourceAnchorId);
             }
         }
@@ -233,9 +241,17 @@ void CreateEdgeTool::setDragOnly(bool dragOnly)
     m_dragOnly = dragOnly;
 }
 
+IGraphNode *CreateEdgeTool::sourceNode() const
+{
+    if (!m_hasSource || !m_scene || m_sourceNodeId.isEmpty())
+        return nullptr;
+    return m_scene->nodeForId(m_sourceNodeId);
+}
+
 void CreateEdgeTool::cancel()
 {
-    m_sourceNode = nullptr;
+    m_hasSource = false;
+    m_sourceNodeId.clear();
     m_sourceAnchorId.clear();
     m_sawDrag = false;
     if (m_previewLine && m_scene) {

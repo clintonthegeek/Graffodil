@@ -72,9 +72,14 @@ signals:
 
 private:
     // Drag state
-    IGraphNode *m_dragNode = nullptr;
-    QList<IGraphNode *> m_draggedNodes;  // all selected nodes moving together
-    QHash<IGraphNode *, QPointF> m_dragStartPositions;
+    /// Drag state is held by node id and resolved through the scene at each
+    /// use: the host may destroy a dragged node mid-gesture, and raw pointers
+    /// would then dangle on every move.
+    IGraphNode *dragNode() const;
+    QList<IGraphNode *> liveDraggedNodes() const;
+    QString m_dragNodeId;
+    QList<QString> m_draggedNodeIds;  // all selected nodes moving together
+    QHash<QString, QPointF> m_dragStartPositions;
     QPointF m_pressScenePos;
     bool m_dragging = false;
     IAlignmentStrategy *m_alignment = nullptr;

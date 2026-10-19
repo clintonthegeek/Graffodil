@@ -54,9 +54,9 @@ void SelectMoveTool::activate(GraphScene *scene)
 void SelectMoveTool::deactivate()
 {
     if (m_dragging)
-        emit dragEnded(m_draggedNodes);
-    m_dragNode = nullptr;
-    m_draggedNodes.clear();
+        emit dragEnded(liveDraggedNodes());
+    m_dragNodeId.clear();
+    m_draggedNodeIds.clear();
     m_dragStartPositions.clear();
     m_dragging = false;
     if (m_rubberBand && m_scene) {
@@ -98,7 +98,7 @@ void SelectMoveTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
             // Toggle
             gi->setSelected(!wasSelected);
             // Don't start drag on toggle
-            m_dragNode = nullptr;
+            m_dragNodeId.clear();
             return;
         }
 
@@ -108,11 +108,13 @@ void SelectMoveTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
         gi->setSelected(true);
 
         // Start drag — collect all currently selected nodes for group move
-        m_dragNode = node;
-        m_draggedNodes = m_scene->selectedNodes();
+        m_dragNodeId = node->nodeId();
+        m_draggedNodeIds.clear();
         m_dragStartPositions.clear();
-        for (auto *n : m_draggedNodes)
-            m_dragStartPositions[n] = n->graphicsItem()->pos();
+        for (auto *n : m_scene->selectedNodes()) {
+            m_draggedNodeIds.append(n->nodeId());
+            m_dragStartPositions.insert(n->nodeId(), n->graphicsItem()->pos());
+        }
         m_dragging = false;
         return;
     }
@@ -162,25 +164,26 @@ void SelectMoveTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
     }
 
     // Node drag
-    if (m_dragNode && !m_draggedNodes.isEmpty()) {
+    IGraphNode *drag = dragNode();
+    if (drag && !m_draggedNodeIds.isEmpty()) {
         if (!m_dragging && (event->scenePos() - m_pressScenePos).manhattanLength() < 3)
             return;  // small threshold to avoid tiny accidental moves
         const bool wasDragging = m_dragging;
         m_dragging = true;
         if (!wasDragging)
-            emit dragBegan(m_draggedNodes);
+            emit dragBegan(liveDraggedNodes());
 
-        const QPointF proposed = m_dragNode->graphicsItem()->pos()
+        const QPointF proposed = drag->graphicsItem()->pos()
                                  + (event->scenePos() - event->lastScenePos());
         QPointF applied = proposed;
         QList<QLineF> guides;
         if (m_alignment) {
-            auto result = m_alignment->align(m_dragNode, proposed, m_scene->nodes());
+            auto result = m_alignment->align(drag, proposed, m_scene->nodes());
             applied = result.position;
             guides = result.guides;
         }
-        const QPointF delta = applied - m_dragNode->graphicsItem()->pos();
-        for (auto *n : m_draggedNodes) {
+        const QPointF delta = applied - drag->graphicsItem()->pos();
+        for (auto *n : liveDraggedNodes()) {
             n->graphicsItem()->setPos(n->graphicsItem()->pos() + delta);
             m_scene->adjustEdgesForNode(n->nodeId());
         }
@@ -230,24 +233,45 @@ void SelectMoveTool::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     }
 
     // Finalize drag
-    if (m_dragNode && m_dragging) {
+    if (dragNode() && m_dragging) {
         if (m_guideOverlay) {
             m_scene->removeItem(m_guideOverlay);
             delete m_guideOverlay;
             m_guideOverlay = nullptr;
         }
-        for (auto *n : m_draggedNodes) {
-            QPointF oldPos = m_dragStartPositions.value(n);
+        const QList<IGraphNode *> live = liveDraggedNodes();
+        for (auto *n : live) {
+            QPointF oldPos = m_dragStartPositions.value(n->nodeId());
             QPointF newPos = n->graphicsItem()->pos();
             if (oldPos != newPos)
                 emit nodeMoved(n, oldPos, newPos);
         }
-        emit dragEnded(m_draggedNodes);
+        emit dragEnded(live);
     }
-    m_dragNode = nullptr;
-    m_draggedNodes.clear();
+    m_dragNodeId.clear();
+    m_draggedNodeIds.clear();
     m_dragStartPositions.clear();
     m_dragging = false;
+}
+
+IGraphNode *SelectMoveTool::dragNode() const
+{
+    if (!m_scene || m_dragNodeId.isEmpty())
+        return nullptr;
+    return m_scene->nodeForId(m_dragNodeId);
+}
+
+QList<IGraphNode *> SelectMoveTool::liveDraggedNodes() const
+{
+    QList<IGraphNode *> live;
+    live.reserve(m_draggedNodeIds.size());
+    if (!m_scene)
+        return live;
+    for (const QString &id : m_draggedNodeIds) {
+        if (auto *node = m_scene->nodeForId(id))
+            live.append(node);
+    }
+    return live;
 }
 
 void SelectMoveTool::keyPressEvent(QKeyEvent *event)

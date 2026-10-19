@@ -110,6 +110,15 @@ protected:
     virtual void onHoverEnter();
     virtual void onHoverLeave();
 
+public:
+    /// Replace both endpoints. Passing nullptr clears them: adjust() then
+    /// clears the drawn path, so an edge whose node went away disappears
+    /// instead of freezing at the dead node's last position.
+    void setEndpoints(IGraphNode *source, IGraphNode *target);
+
+    /// IGraphEdge: see the interface default.
+    void detachEndpoints() override { setEndpoints(nullptr, nullptr); }
+
 private:
     /// Resolve the current anchor from the node (either by id or dynamically).
     Anchor resolveSourceAnchor() const;

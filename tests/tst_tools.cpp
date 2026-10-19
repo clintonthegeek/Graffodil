@@ -8,6 +8,8 @@
 #include <graffodil/SelectMoveTool.h>
 #include <graffodil/CreateEdgeTool.h>
 #include <graffodil/IGraphNode.h>
+#include <graffodil/GraphEdgeItem.h>
+#include <graffodil/EdgePathStrategy.h>
 #include <graffodil/PanZoomTool.h>
 #include <graffodil/CompositeTool.h>
 #include <graffodil/DefaultGraphTool.h>
@@ -52,6 +54,105 @@ private slots:
         QCoreApplication::sendEvent(&scene, &release);
 
         QCOMPARE(scene.selectedNodes().size(), 1);
+    }
+
+    // ASK-M6: a node removed while a consumer still holds the edge must detach
+    // the endpoints (no dangling pointer, no ghost path at the dead position).
+    void nodeRemovalDetachesConsumerHeldEdge() {
+        GraphScene scene;
+        auto *a = new TestNode("a", {0, 0});
+        auto *b = new TestNode("b", {300, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *edge = new GraphEdgeItem(a, QString(), b, QString(),
+                                       std::make_unique<DirectPathStrategy>());
+        scene.addEdge(edge);
+        edge->adjust();
+        QVERIFY(!edge->path().isEmpty());
+
+        scene.removeNode("a");
+        QVERIFY(edge->sourceNode() == nullptr);
+        QVERIFY(edge->path().isEmpty());
+
+        // The consumer then frees the node: nothing may dereference it.
+        delete a;
+        edge->endpointsChanged();
+        QVERIFY(edge->path().isEmpty());
+        QCOMPARE(edge->sourceNode(), nullptr);
+    }
+
+    // ASK-M6: the edge tool resolved its source once and kept the raw pointer;
+    // a node destroyed mid-gesture was dereferenced on every mouse move.
+    void createEdgeToolSurvivesSourceNodeDestruction() {
+        GraphScene scene;
+        CreateEdgeTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *source = new TestNode("source", {0, 0});
+        scene.addNode(source);
+        QSignalSpy requested(&tool, &CreateEdgeTool::edgeRequested);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        // Host destroys the gesture's source.
+        scene.removeNode("source");
+        delete source;
+
+        QGraphicsSceneMouseEvent move(QEvent::GraphicsSceneMouseMove);
+        move.setScenePos(QPointF(200, 30));
+        move.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &move);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(200, 30));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+
+        QCOMPARE(requested.count(), 0);
+    }
+
+    // ASK-M6: same class for the drag tool — a dragged node destroyed
+    // mid-gesture was dereferenced by the next move and by the final emit.
+    void selectMoveToolSurvivesDraggedNodeDestruction() {
+        GraphScene scene;
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        auto *node = new TestNode("n", {0, 0});
+        node->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(node);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(50, 30));
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsSceneMouseEvent move(QEvent::GraphicsSceneMouseMove);
+        move.setScenePos(QPointF(90, 30));
+        move.setLastScenePos(QPointF(50, 30));
+        move.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &move);
+
+        scene.removeNode("n");
+        delete node;
+
+        QGraphicsSceneMouseEvent move2(QEvent::GraphicsSceneMouseMove);
+        move2.setScenePos(QPointF(140, 30));
+        move2.setLastScenePos(QPointF(90, 30));
+        move2.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &move2);
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(140, 30));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
     }
 
     void selectToolStatusMessage() {

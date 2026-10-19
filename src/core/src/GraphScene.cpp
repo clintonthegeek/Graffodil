@@ -127,6 +127,10 @@ void GraphScene::removeEdge(const QString &id)
     // endpoints regardless of any prior reverse() call.
     m_edgesByNode.remove(edge->sourceNodeId(), edge);
     m_edgesByNode.remove(edge->targetNodeId(), edge);
+    // The edge object may outlive the scene registry (a consumer holds it), and
+    // removeNode() may free the node next: drop the endpoint pointers first so
+    // a later adjust() cannot dereference a dead node.
+    edge->detachEndpoints();
     removeItem(edge->graphicsItem());
     m_edges.erase(it);
     emit edgeRemoved(id);

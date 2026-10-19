@@ -29,6 +29,12 @@ public:
         return n ? n->nodeId() : QString();
     }
 
+    /// Drop both endpoint pointers. The scene calls this before the edge is
+    /// removed (or a node is removed) so an edge the consumer still holds stops
+    /// pointing at a node that may be freed next. Default is a no-op so
+    /// data-only edges stay valid.
+    virtual void detachEndpoints() {}
+
     /// Notification that either endpoint node may have moved or changed
     /// geometry. The scene calls this from adjustEdgesForNode(),
     /// adjustAllEdges(), and applyLayout(). Implementations should recompute

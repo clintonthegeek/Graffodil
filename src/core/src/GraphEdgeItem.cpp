@@ -236,10 +236,26 @@ Anchor GraphEdgeItem::resolveTargetAnchor() const
     return m_target->anchor(m_targetAnchorId);
 }
 
+void GraphEdgeItem::setEndpoints(IGraphNode *source, IGraphNode *target)
+{
+    if (m_source == source && m_target == target)
+        return;
+    m_source = source;
+    m_target = target;
+    adjust();
+}
+
 void GraphEdgeItem::adjust()
 {
-    if (!m_strategy || !m_source || !m_target)
+    if (!m_strategy || !m_source || !m_target) {
+        // No endpoint left: clear the drawn path so the edge cannot ghost at a
+        // dead node's last position.
+        if (!path().isEmpty()) {
+            prepareGeometryChange();
+            setPath({});
+        }
         return;
+    }
 
     prepareGeometryChange();
 
