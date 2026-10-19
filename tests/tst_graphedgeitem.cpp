@@ -23,6 +23,34 @@ private slots:
         QVERIFY(edge.graphicsItem() != nullptr);
     }
 
+    // Punch list: highlight/selection widen the painted pen without growing
+    // the bounding rect, so the stroke clipped and the old region was not
+    // invalidated.
+    void boundingRectCoversTheWidenedStroke() {
+        TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left,
+                           std::make_unique<DirectPathStrategy>());
+        edge.setHitWidth(0.0);   // let the painted stroke dominate the margin
+        edge.adjust();
+        const QRectF plain = edge.boundingRect();
+
+        edge.setHighlighted(true);
+        const QRectF highlighted = edge.boundingRect();
+        QVERIFY(highlighted.width() > plain.width());
+        QVERIFY(highlighted.contains(plain));
+
+        TestNode src2("src2", {0, 0}), tgt2("tgt2", {200, 0});
+        GraphEdgeItem selected(&src2, AnchorIds::Right, &tgt2, AnchorIds::Left,
+                               std::make_unique<DirectPathStrategy>());
+        selected.setHitWidth(0.0);
+        selected.adjust();
+        const QRectF unselected = selected.boundingRect();
+        selected.setSelected(true);
+        const QRectF withSelection = selected.boundingRect();
+        QVERIFY(withSelection.width() > unselected.width());
+        QVERIFY(withSelection.height() >= unselected.height());
+    }
+
     void adjustUpdatesPath() {
         TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
         GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left,

@@ -7,9 +7,18 @@ namespace Graffodil {
 
 Anchor IGraphNode::anchorToward(const QPointF &other) const
 {
+    const QList<Anchor> list = anchors();
+    if (list.isEmpty()) {
+        // Silent (0,0) routed edges to the scene origin, which looked like a
+        // layout bug rather than a missing-anchor bug.
+        qCWarning(lcGraffodil).nospace()
+            << "IGraphNode::anchorToward: node '" << nodeId()
+            << "' reports no anchors. Returning a default (0,0) anchor.";
+        return {};
+    }
     Anchor best;
     qreal bestDist = std::numeric_limits<qreal>::max();
-    for (const Anchor &a : anchors()) {
+    for (const Anchor &a : list) {
         const qreal d = QLineF(a.scenePos, other).length();
         if (d < bestDist) {
             bestDist = d;

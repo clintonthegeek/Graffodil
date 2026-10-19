@@ -61,6 +61,10 @@ void GraphMinimap::paintEvent(QPaintEvent * /*event*/)
     QRectF sceneRect = effectiveSceneRect(m_graphicsView);
     if (sceneRect.isNull())
         return;
+    // A zero-extent scene rect would scale by infinity (SIGFPE on some
+    // platforms, garbage painting on others).
+    if (sceneRect.width() <= 0.0 || sceneRect.height() <= 0.0)
+        return;
 
     // Scale scene to fit minimap
     qreal scaleX = (width() - 4) / sceneRect.width();
@@ -108,6 +112,16 @@ void GraphMinimap::mouseMoveEvent(QMouseEvent *event)
     }
 }
 
+void GraphMinimap::mouseReleaseEvent(QMouseEvent *event)
+{
+    // Without this the drag latched on for the widget's lifetime: every later
+    // hover re-centred the view with no button held.
+    if (event->button() == Qt::LeftButton) {
+        m_dragging = false;
+        event->accept();
+    }
+}
+
 bool GraphMinimap::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == m_graphicsView) {
@@ -128,7 +142,7 @@ QPointF GraphMinimap::mapToScene(const QPoint &minimapPos) const
         return {};
 
     QRectF sceneRect = effectiveSceneRect(m_graphicsView);
-    if (sceneRect.isNull())
+    if (sceneRect.isNull() || sceneRect.width() <= 0.0 || sceneRect.height() <= 0.0)
         return {};
 
     qreal scaleX = (width() - 4) / sceneRect.width();

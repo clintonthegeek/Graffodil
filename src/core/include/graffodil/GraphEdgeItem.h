@@ -119,6 +119,10 @@ public:
     /// IGraphEdge: see the interface default.
     void detachEndpoints() override { setEndpoints(nullptr, nullptr); }
 
+    /// Selection widens the painted stroke, so the bounding rect changes and
+    /// the scene must be told before the repaint.
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
+
 private:
     /// Resolve the current anchor from the node (either by id or dynamically).
     Anchor resolveSourceAnchor() const;

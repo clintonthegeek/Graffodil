@@ -187,18 +187,22 @@ GraphScene::ClearResult GraphScene::clearGraph()
     result.edges = m_edges.values();
     result.nodes = m_nodes.values();
 
+    // Remove from the registries before emitting: a slot that re-enters the
+    // scene during a removal must not see half-cleared state.
     for (auto *edge : result.edges) {
         removeItem(edge->graphicsItem());
-        emit edgeRemoved(edge->edgeId());
+        edge->detachEndpoints();
     }
     m_edges.clear();
     m_edgesByNode.clear();
+    for (auto *edge : result.edges)
+        emit edgeRemoved(edge->edgeId());
 
-    for (auto *node : result.nodes) {
+    for (auto *node : result.nodes)
         removeItem(node->graphicsItem());
-        emit nodeRemoved(node->nodeId());
-    }
     m_nodes.clear();
+    for (auto *node : result.nodes)
+        emit nodeRemoved(node->nodeId());
 
     // Groups are scene-owned decorations; clearGraph() removes them too.
     for (auto *g : m_groups) {
@@ -618,8 +622,10 @@ GraphScene::edgeActionAt(const QPointF &scenePos) const
                 if (auto *pathItem = dynamic_cast<QGraphicsPathItem *>(gi)) {
                     const QPainterPath &path = pathItem->path();
                     if (!path.isEmpty()) {
-                        const QPointF pt = path.pointAtPercent(
-                            qBound(0.0, act.pos, 1.0));
+                        // path points are item-local; hit-testing is in scene
+                        // coordinates (nodeSubItemAt does the same).
+                        const QPointF pt = pathItem->mapToScene(
+                            path.pointAtPercent(qBound(0.0, act.pos, 1.0)));
                         if (QLineF(pt, scenePos).length() <=
                             kEdgeActionHitRadius) {
                             return {edge, act};

@@ -85,6 +85,33 @@ public:
     int adjustCount = 0;
 };
 
+// An edge with one affordance at the path midpoint, for edgeActionAt tests.
+class ActionEdge : public Graffodil::GraphEdgeItem {
+public:
+    ActionEdge(Graffodil::IGraphNode *s, Graffodil::IGraphNode *t)
+        : Graffodil::GraphEdgeItem(s, QString(), t, QString(),
+                                   std::make_unique<Graffodil::DirectPathStrategy>()) {}
+    QList<Graffodil::EdgeAction> edgeActions() const override
+    {
+        Graffodil::EdgeAction a;
+        a.id = "delete";
+        a.pos = 0.5;
+        return {a};
+    }
+};
+
+// A node that reports no anchors at all.
+class AnchorlessNode : public QGraphicsRectItem, public Graffodil::IGraphNode {
+public:
+    explicit AnchorlessNode(const QString &id) : QGraphicsRectItem(0, 0, 50, 50), m_id(id) {}
+    QString nodeId() const override { return m_id; }
+    QList<Graffodil::Anchor> anchors() const override { return {}; }
+    QRectF nodeBoundingRect() const override { return mapToScene(rect()).boundingRect(); }
+    QGraphicsItem *graphicsItem() override { return this; }
+private:
+    QString m_id;
+};
+
 using namespace Graffodil;
 using namespace Graffodil::Test;
 
@@ -661,6 +688,74 @@ private slots:
     //     selection/drag on the same click still happens.
     //   * The press does not fire the signal when it lands outside any
     //     declared sub-item.
+
+    // Punch list: clearGraph() emitted while the registries still held the
+    // items, so a slot that re-entered saw half-cleared state.
+    void clearGraphEmitsAfterTheRegistriesAreEmpty()
+    {
+        GraphScene scene;
+        auto *a = new TestNode("a", {0, 0});
+        auto *b = new TestNode("b", {200, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        scene.addEdge(new TestEdge("e1", a, b));
+
+        int nodesSeen = -1;
+        int edgesSeen = -1;
+        QObject::connect(&scene, &GraphScene::nodeRemoved, &scene,
+                         [&](const QString &) { nodesSeen = int(scene.nodes().size()); });
+        QObject::connect(&scene, &GraphScene::edgeRemoved, &scene,
+                         [&](const QString &) { edgesSeen = int(scene.edges().size()); });
+
+        scene.clearGraph();
+        QCOMPARE(nodesSeen, 0);
+        QCOMPARE(edgesSeen, 0);
+    }
+
+    // Punch list: path points are item-local, but edgeActionAt() compared them
+    // with a scene position. A translated edge was unhittable.
+    void edgeActionAtUsesSceneCoordinates()
+    {
+        GraphScene scene;
+        auto *a = new TestNode("a", {0, 0});
+        auto *b = new TestNode("b", {300, 0});
+        scene.addNode(a);
+        scene.addNode(b);
+        auto *edge = new ActionEdge(a, b);
+        edge->adjust();
+        edge->setPos(0, 100);   // translate the item away from the origin
+        scene.addEdge(edge);
+
+        QSignalSpy spy(&scene, &GraphScene::edgeActionTriggered);
+
+        const QPointF midScene = edge->mapToScene(edge->path().pointAtPercent(0.5));
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(midScene);
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+        QCOMPARE(spy.count(), 1);
+
+        // The item-local midpoint is a different scene point and must not hit.
+        const QPointF midLocal = edge->path().pointAtPercent(0.5);
+        QGraphicsSceneMouseEvent miss(QEvent::GraphicsSceneMousePress);
+        miss.setScenePos(midLocal);
+        miss.setButton(Qt::LeftButton);
+        miss.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &miss);
+        QCOMPARE(spy.count(), 1);
+    }
+
+    // Punch list: anchorToward() returned a silent (0,0) for a node with no
+    // anchors; edges then routed to the scene origin.
+    void anchorTowardWarnsWhenThereAreNoAnchors()
+    {
+        AnchorlessNode node("bare");
+        QTest::ignoreMessage(QtWarningMsg,
+                             QRegularExpression("anchorToward: node .*bare.* reports no anchors"));
+        const Anchor a = node.anchorToward(QPointF(10, 10));
+        QCOMPARE(a.scenePos, QPointF(0, 0));
+    }
 
     void nodeSubItemClicked_firesInsideSubItemAndPreservesSelection()
     {

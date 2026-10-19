@@ -180,8 +180,20 @@ void GraphEdgeItem::updateLabelGeometry()
 
 void GraphEdgeItem::setHighlighted(bool highlighted)
 {
+    if (m_highlighted == highlighted)
+        return;
+    // paint() widens the pen for highlight/selection; the bounding rect must
+    // grow with it or the stroke clips (the ask's B-item).
+    prepareGeometryChange();
     m_highlighted = highlighted;
     update();
+}
+
+QVariant GraphEdgeItem::itemChange(GraphicsItemChange change, const QVariant &value)
+{
+    if (change == ItemSelectedHasChanged)
+        prepareGeometryChange();
+    return QGraphicsPathItem::itemChange(change, value);
 }
 
 void GraphEdgeItem::setWaypoints(const QList<QPointF> &waypoints)
@@ -319,7 +331,13 @@ QRectF GraphEdgeItem::boundingRect() const
     // Expand the path's bounding rect to include terminus shapes,
     // so the full edge (including arrowheads) is invalidated on change.
     QRectF r = QGraphicsPathItem::boundingRect();
+    // The hit width and the effective stroke (highlight/selection widen the
+    // pen in paint()) both contribute to the repaint area.
     qreal margin = m_hitWidth / 2.0;
+    qreal stroke = pen().widthF();
+    if (m_highlighted) stroke += 1.0;
+    if (isSelected())   stroke = qMax(stroke, 1.0) + 1.5;
+    margin = qMax(margin, stroke / 2.0 + 1.0);
     if (m_sourceTerminus)
         margin = qMax(margin, m_sourceTerminus->size());
     if (m_targetTerminus)
