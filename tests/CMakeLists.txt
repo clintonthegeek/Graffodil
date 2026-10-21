@@ -54,8 +54,12 @@ add_test(NAME tst_forcelayout COMMAND tst_forcelayout)
 
 add_executable(tst_batchrenderer tst_batchrenderer.cpp)
 target_link_libraries(tst_batchrenderer PRIVATE Graffodil::Batch Qt6::Test)
+# PROJECT_SOURCE_DIR, not CMAKE_SOURCE_DIR: this file is also consumed as a
+# subdirectory (Corbomite adds libs/graffodil), and CMAKE_SOURCE_DIR is then
+# the *host's* root, not Graffodil's. graffodil-batch's own PUBLIC include
+# dir is only `include/`, so this one has to be named explicitly.
 target_include_directories(tst_batchrenderer PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/src/batch/src)
+    ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/batch/src)
 add_test(NAME tst_batchrenderer COMMAND tst_batchrenderer)
 
 add_executable(tst_integration tst_integration.cpp)
@@ -77,3 +81,30 @@ add_executable(tst_dashoffset tst_dashoffset.cpp)
 target_link_libraries(tst_dashoffset PRIVATE Graffodil::Core Qt6::Test)
 target_include_directories(tst_dashoffset PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME tst_dashoffset COMMAND tst_dashoffset)
+
+# Every test above uses QTEST_MAIN, and these link Qt6::Widgets, so each one
+# constructs a QApplication and needs a GUI platform. Force the offscreen
+# platform so the suite runs on a headless box: with the default xcb plugin
+# and no DISPLAY, QApplication aborts the process (SIGABRT) before the first
+# test case runs. Naming the platform here also makes the suite deterministic
+# on a machine that *does* have a display, where the same tests would
+# otherwise open real windows.
+set(GRAFFODIL_TEST_NAMES
+    tst_graphscene
+    tst_groups
+    tst_edgepathstrategies
+    tst_terminus
+    tst_graphedgeitem
+    tst_tools
+    tst_circular
+    tst_sugiyama
+    tst_spatialgrid
+    tst_quadtree
+    tst_forcelayout
+    tst_batchrenderer
+    tst_integration
+    tst_minimap
+    tst_edgelabels
+    tst_dashoffset)
+set_tests_properties(${GRAFFODIL_TEST_NAMES} PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
