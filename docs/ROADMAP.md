@@ -1,6 +1,6 @@
 # Graffodil Roadmap & Task Status
 
-**Updated:** 2026-07-01
+**Updated:** 2026-10-30
 **Findings source:** [`docs/evaluation-2026-06-09.md`](evaluation-2026-06-09.md) (finding IDs B1–B6, A1–A9, P1–P5 referenced below)
 
 This is the **single source of truth for work status** on Graffodil. When you
@@ -63,6 +63,15 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
   cost on large canvases; reuse `Graffodil::Spatial`.
 - **Anchor allocation churn (P5):** revisit `anchors()` value-return if profiles
   point here.
+- **countCrossings** is O(E²) — Barth–Jünger–Mutzel would make it O(E log V)
+  (from Corbomite 2026-10-30 handoff; deferred behind M14/M15/M19 per their
+  own suggested sequencing).
+- **SelectMoveTool** rebuilds its guide overlay every drag frame; needs an
+  update-in-place approach.
+- **QuadTree** — `insert()` ref-across-`subdivide()` is safe as written but
+  worth a reserve-tuning; `computeRepulsion` uses `bounds.width()` as the
+  region size, coarsening Barnes-Hut on non-square bounds (from the same
+  handoff).
 - **Qt Quick rendering backend** for 100K+ nodes (long-term; from
   `corbomite-integration-feedback.md`).
 - **Z-default ambiguity (B6, second half):** consumer-set z of exactly 0.0/−1.0
@@ -71,6 +80,29 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 ## Status log
 
+- **2026-10-30** — Second round of Corbomite/Mark-off consolidated asks received
+  in [`docs/handoff/2026-10-30-from-corbomite-theming-and-interaction.md`](handoff/2026-10-30-from-corbomite-theming-and-interaction.md)
+  (M14 theming surface, M15 spatial hit-testing, M19 residual — waypoint table keyed on
+  `(sourceId,targetId)` so parallel edges collapse and self-loops are unhandled —
+  plus leftover perf rows `QuadTree::insert`/`computeRepulsion`,
+  `SelectMoveTool` guide-overlay rebuild, and `countCrossings` O(E²)).
+  Roughly half of the smaller rows in that document are **already fixed** by the
+  2026-10-19 punch list but Corbomite hasn't re-verified against a newer pin yet —
+  their handoff cites 2026-10-18 measurements against a pin that predates
+  the batch. Reply handoff filed at
+  [`docs/handoff/2026-10-30-reply-to-corbomite-theming-and-interaction.md`](handoff/2026-10-30-reply-to-corbomite-theming-and-interaction.md).
+
+  Newly accepted work (not yet spec'd):
+  - **M14** — expose a palette/theme seam: `Graffodil::Palette` struct +
+    `GraphScene::setPalette()`, `GraphEdgeItem::setSelectionColor()`, and an optional
+    per-node colour provider `std::function<QColor(const IGraphNode*)>` for
+    BatchRenderer. Corbomite's own `CanvasPalette` is the worked example we can adapt.
+  - **M15** — route hover/press hit-testing through `Graffodil::Spatial` instead of
+    an O(N) item list walk per mouse event.
+  - **M19 residual** — handle parallel edges and self-loops in `edgeWaypoints`
+    (layer fixed-point already landed in `bb41c0d`).
+  Perf rows (`countCrossings` BJM, `SelectMoveTool` rebuild, `QuadTree` pair) stay
+  in the deferred backlog below, sequenced behind M14/M15/M19.
 - **2026-10-19** — Consumer-driven bug fixes from Corbomite's consolidated asks.
   **ASK-M5:** `~BatchRenderer` walked scene items that `~QGraphicsScene` had
   already destroyed (use-after-free on every batch-mode teardown); fixed with a
