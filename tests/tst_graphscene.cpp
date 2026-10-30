@@ -906,6 +906,61 @@ private slots:
         // palette() getters reflect the constructor default and the update.
         QCOMPARE(scene.palette().edgeSelection, QColor(255, 0, 0));
     }
+
+    // ASK-M15: tools resolve hit items to graph objects through the
+    // registry maps. A child item (node card sub-content) resolves through
+    // the parent chain, so click-through semantics are preserved without
+    // scanning the whole registry per mouse event.
+    void nodeForGraphicsItemResolvesChildItems() {
+        GraphScene scene;
+        auto *src = new Graffodil::Test::TestNode("src", {0, 0});
+        src->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(src);
+
+        QCOMPARE(scene.nodeForGraphicsItem(src->graphicsItem()), src);
+        QCOMPARE(scene.edgeForGraphicsItem(src->graphicsItem()),
+                 static_cast<IGraphEdge *>(nullptr));
+
+        // A sub-item inside the node rect resolves to the owning node.
+        auto *sub = new QGraphicsRectItem(0, 0, 20, 20, src->graphicsItem());
+        sub->setPos(30, 30);   // scene (30..50, 30..50)
+        QCOMPARE(scene.nodeForGraphicsItem(sub), src);
+
+        // Unregistered items resolve to nothing.
+        QGraphicsRectItem orphanItem(0, 0, 5, 5);
+        QCOMPARE(scene.nodeForGraphicsItem(&orphanItem),
+                 static_cast<IGraphNode *>(nullptr));
+
+        // Edge items resolve through the same maps.
+        auto *edge = new Graffodil::Test::TestEdge("e", nullptr, nullptr);
+        scene.addEdge(edge);
+        QCOMPARE(scene.edgeForGraphicsItem(edge->graphicsItem()), edge);
+
+        // selectMoveTool click over the sub-item selects the node — the
+        // per-event path used to scan every node for every candidate item.
+        Graffodil::SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(40, 40));   // inside the sub-item
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+        QVERIFY(scene.itemAt(QPointF(40, 40), QTransform()) != nullptr);
+        QCOMPARE(scene.selectedNodes().size(), 1);
+        QCOMPARE(scene.selectedNodeId(), QStringLiteral("src"));
+
+        // After removal, the maps are empty: stale pointers resolve to null.
+        scene.removeNode("src");
+        scene.removeEdge("e");
+        QCOMPARE(scene.nodeForGraphicsItem(src->graphicsItem()),
+                 static_cast<IGraphNode *>(nullptr));
+        QCOMPARE(scene.edgeForGraphicsItem(edge->graphicsItem()),
+                 static_cast<IGraphEdge *>(nullptr));
+
+        delete edge;
+        delete sub;       // parent-child item: deleting sub cleans its child list
+        delete src;
+    }
 };
 
 QTEST_MAIN(TestInterfaces)

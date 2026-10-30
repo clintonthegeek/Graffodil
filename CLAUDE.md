@@ -22,11 +22,20 @@ Core + Extensions model. See `docs/graffodil-design.md` for the full spec.
 - `Graffodil::Circular` — Circular layout (depends: Core)
 - `Graffodil::Batch` — Batch rendering for 10K+ nodes (depends: Core)
 
-## Current Status (2026-08-19)
+## Current Status (2026-10-30)
 
 The library is feature-complete against `docs/graffodil-design.md` and got a
 full evaluation on 2026-06-09 (`docs/evaluation-2026-06-09.md`: bugs,
 architecture findings, performance items, feature avenues).
+
+Corbomite is the live downstream consumer (submodule pin `libs/graffodil`,
+runs our 16 tests in their suite). Their second consolidated-ask round
+(2026-10-30) is delivered: M14 theming surface (`Palette`), M15 O(items-at-
+cursor) hit-testing, and the M19 residual (parallel-edge / self-loop
+waypoint routes). Perf rows (`countCrossings` BJM, `SelectMoveTool` guide
+rebuild, QuadTree sizing) are accepted and queued in the roadmap backlog.
+Reply handoff: `docs/handoff/2026-10-30-reply-to-corbomite-theming-and-
+interaction.md`.
 
 **Task status lives in [`docs/ROADMAP.md`](docs/ROADMAP.md) — the single
 source of truth.** Start there; it sequences the phases, links every plan and

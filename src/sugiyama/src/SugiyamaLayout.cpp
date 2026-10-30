@@ -402,10 +402,23 @@ LayoutResult SugiyamaLayout::compute()
     for (int i = 0; i < sortedIds.size(); ++i)
         alphaIndex[sortedIds[i]] = i;
 
-    // Build edges from m_edges
+    // Build edges from m_edges. Parallel edges (same source/target pair)
+    // and self-loops each keep their own identity (ASK-M19 residual) so
+    // waypoint routes can be delivered per edge rather than per pair.
     QList<QPair<QString, QString>> edges;
-    for (const auto *edge : m_edges)
-        edges.append({edge->sourceNode()->nodeId(), edge->targetNode()->nodeId()});
+    QList<QString> edgeIds;
+    QSet<QPair<QString, QString>> duplicatePairs;  // pairs sharing >1 edge
+    {
+        QHash<QPair<QString, QString>, int> pairCount;
+        for (const auto *edge : m_edges) {
+            edges.append({edge->sourceNode()->nodeId(), edge->targetNode()->nodeId()});
+            edgeIds.append(edge->edgeId());
+            pairCount[qMakePair(edges.back().first, edges.back().second)]++;
+        }
+        for (auto it = pairCount.constBegin(); it != pairCount.constEnd(); ++it)
+            if (it.value() > 1)
+                duplicatePairs.insert(it.key());
+    }
 
     // Build directed adjacency (predecessors and successors)
     QHash<QString, QList<QString>> predecessors;
@@ -559,8 +572,13 @@ LayoutResult SugiyamaLayout::compute()
             layerNodes[layer[uid]].append(uid);
 
         // ---- Phase 3: Dummy vertex insertion ----
-        struct DummyInfo { QString sourceUid; QString targetUid; int seqIndex; };
+        struct DummyInfo { QString sourceUid; QString targetUid; QString edgeId; int seqIndex; };
         QHash<QString, DummyInfo> dummyEdgeMap;
+        // Per-edge waypoint accumulators for parallel-edge instances
+        // (pairs with >1 sharing edge; keyed by edgeId, ASK-M19 residual).
+        QHash<QString, QList<QPointF>> perEdgeWps;
+        QList<QString> selfLoopEdgeIds;
+        QList<QString> selfLoopNodeIds;
 
         QHash<QString, QList<QString>> compPred;
         QHash<QString, QList<QString>> compSucc;
@@ -570,9 +588,19 @@ LayoutResult SugiyamaLayout::compute()
         for (const auto &edge : edges) {
             if (!compSet.contains(edge.first) || !compSet.contains(edge.second))
                 continue;
+            const QString edgeId = edgeIds[&edge - edges.constData()];
             int fromLayer = layer[edge.first];
             int toLayer = layer[edge.second];
             int span = toLayer - fromLayer;
+
+            // Self-loop: no dummy chain (single layer), but ASK-M19 gives
+            // it a U-shaped route collected below — it used to emit
+            // nothing at all from this layout.
+            if (span == 0) {
+                selfLoopEdgeIds.append(edgeId);
+                selfLoopNodeIds.append(edge.first);
+                continue;
+            }
 
             if (span <= 1) {
                 compPred[edge.second].append(edge.first);
@@ -590,6 +618,7 @@ LayoutResult SugiyamaLayout::compute()
                     DummyInfo di;
                     di.sourceUid = edge.first;
                     di.targetUid = edge.second;
+                    di.edgeId = edgeId;
                     di.seqIndex = seq++;
                     dummyEdgeMap[dummyId] = di;
 
@@ -813,14 +842,45 @@ LayoutResult SugiyamaLayout::compute()
                 auto key = qMakePair(di.sourceUid, di.targetUid);
                 QPointF wp(pos.x() + layerExtent / 2.0, pos.y() + withinExtent / 2.0);
 
-                QList<QPointF> &wps = result.edgeWaypoints[key];
-                while (wps.size() <= di.seqIndex)
-                    wps.append(QPointF());
-                wps[di.seqIndex] = wp;
+                if (duplicatePairs.contains(key)) {
+                    // Parallel-edge instance: route lives in the per-edge
+                    // table so two edges of the same pair keep separate
+                    // routes instead of overwriting each other's slots.
+                    QList<QPointF> &wps = perEdgeWps[di.edgeId];
+                    while (wps.size() <= di.seqIndex)
+                        wps.append(QPointF());
+                    wps[di.seqIndex] = wp;
+                } else {
+                    // Single edge of the pair keeps the legacy pair-keyed
+                    // table (unchanged contract for existing consumers).
+                    QList<QPointF> &wps = result.edgeWaypoints[key];
+                    while (wps.size() <= di.seqIndex)
+                        wps.append(QPointF());
+                    wps[di.seqIndex] = wp;
+                }
             } else {
                 result.nodePositions[uid] = pos;
             }
         }
+
+        // Self-loops (ASK-M19 residual): one U-turn route per loop edge,
+        // bulging outward on the within-axis side (+v) beside the node.
+        for (int i = 0; i < selfLoopEdgeIds.size(); ++i) {
+            const QString &nid = selfLoopNodeIds[i];
+            if (!allPositions.contains(nid))
+                continue;
+            const QPointF p = allPositions[nid];
+            const QList<QPointF> route = {
+                QPointF(p.x() + layerExtent, p.y() + withinExtent / 2.0),
+                QPointF(p.x() + layerExtent / 2.0,
+                        p.y() + withinExtent + withinGap / 2.0)
+            };
+            result.edgeWaypointsByEdgeId[selfLoopEdgeIds[i]] = route;
+        }
+
+        // Fold parallel-edge instance routes into the result.
+        for (auto it = perEdgeWps.constBegin(); it != perEdgeWps.constEnd(); ++it)
+            result.edgeWaypointsByEdgeId[it.key()] = it.value();
 
         // Advance within-axis offset for next component
         componentYOffset += maxHeight + 2 * withinGap;
@@ -842,6 +902,11 @@ LayoutResult SugiyamaLayout::compute()
             for (int i = 0; i < wps.size(); ++i)
                 wps[i].setX(maxU + layerExtent - wps[i].x());
         }
+        for (auto it = result.edgeWaypointsByEdgeId.begin(); it != result.edgeWaypointsByEdgeId.end(); ++it) {
+            QList<QPointF> &wps = it.value();
+            for (int i = 0; i < wps.size(); ++i)
+                wps[i].setX(maxU + layerExtent - wps[i].x());
+        }
     }
     if (swapAxes) {
         for (auto it = result.nodePositions.begin(); it != result.nodePositions.end(); ++it) {
@@ -849,6 +914,11 @@ LayoutResult SugiyamaLayout::compute()
             it.value() = QPointF(p.y(), p.x());
         }
         for (auto it = result.edgeWaypoints.begin(); it != result.edgeWaypoints.end(); ++it) {
+            QList<QPointF> &wps = it.value();
+            for (int i = 0; i < wps.size(); ++i)
+                wps[i] = QPointF(wps[i].y(), wps[i].x());
+        }
+        for (auto it = result.edgeWaypointsByEdgeId.begin(); it != result.edgeWaypointsByEdgeId.end(); ++it) {
             QList<QPointF> &wps = it.value();
             for (int i = 0; i < wps.size(); ++i)
                 wps[i] = QPointF(wps[i].y(), wps[i].x());

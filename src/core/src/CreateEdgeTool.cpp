@@ -63,14 +63,12 @@ void CreateEdgeTool::deactivate()
 IGraphNode *CreateEdgeTool::findNodeAt(const QPointF &scenePos) const
 {
     if (!m_scene) return nullptr;
+    // items() is Qt's indexed point query; resolution per item is an
+    // O(1) registry lookup instead of a scan over every node (ASK-M15).
     const auto items = m_scene->items(scenePos);
-    for (auto *item : items) {
-        for (auto *node : m_scene->nodes()) {
-            if (node->graphicsItem() == item
-                || node->graphicsItem()->isAncestorOf(item))
-                return node;
-        }
-    }
+    for (auto *item : items)
+        if (auto *node = m_scene->nodeForGraphicsItem(item))
+            return node;
     return nullptr;
 }
 

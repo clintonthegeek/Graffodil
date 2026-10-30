@@ -62,6 +62,14 @@ public:
 
     QList<IGraphEdge *> edges() const;
 
+    // --- Item -> graph object resolution (hot-path hit-testing) ---
+    // Resolve a QGraphicsItem (or any of its ancestors) to its registered
+    // node/edge. Uses the registry maps so a hit-test is O(items-under-
+    // cursor), not O(registry size) — the tools call this on every mouse
+    // event. Returns nullptr for unregistered items.
+    IGraphNode *nodeForGraphicsItem(QGraphicsItem *item) const;
+    IGraphEdge *edgeForGraphicsItem(QGraphicsItem *item) const;
+
     /// Remove all nodes and edges from the registry and scene. Returns the
     /// removed interfaces so the consumer can free their graphicsItems.
     struct ClearResult {
@@ -308,6 +316,10 @@ private:
     /// nodeId -> edges touching that node (both endpoints). An edge with
     /// distinct endpoints appears under two keys; a self-loop under one key.
     QMultiHash<QString, IGraphEdge *> m_edgesByNode;
+    /// QGraphicsItem -> registry entry, maintained on add/remove/clear so
+    /// pointer hit-testing resolves in O(items at cursor) (ASK-M15).
+    QHash<QGraphicsItem *, IGraphNode *> m_nodesByItem;
+    QHash<QGraphicsItem *, IGraphEdge *> m_edgesByItem;
     GraphTool *m_activeTool = nullptr;
     bool m_edgesAboveNodes = false;
 

@@ -329,6 +329,79 @@ private slots:
             }
         }
     }
+
+    // ASK-M19 residual: two parallel A->C edges each get their own
+    // per-edge route; the legacy pair-keyed table stays unambiguous.
+    void parallelEdgesGetDistinctRoutes() {
+        TestNode a("A"), c("C"), mid("M");
+        TestEdge chain1("am", &a, &mid), chain2("mc", &mid, &c);
+        TestEdge p1("p1", &a, &c), p2("p2", &a, &c);
+
+        SugiyamaLayout layout;
+        layout.setNodeSize({100, 60});
+        layout.setSpacing(60, 40);
+        layout.setNodes({&a, &c, &mid});
+        layout.setEdges({&chain1, &chain2, &p1, &p2});
+
+        const auto result = layout.compute();
+        QCOMPARE(result.nodePositions.size(), 3);
+
+        QVERIFY(result.edgeWaypointsByEdgeId.contains("p1"));
+        QVERIFY(result.edgeWaypointsByEdgeId.contains("p2"));
+        const auto r1 = result.edgeWaypointsByEdgeId["p1"];
+        const auto r2 = result.edgeWaypointsByEdgeId["p2"];
+        QCOMPARE(r1.size(), r2.size());
+        QVERIFY2(r1 != r2, "parallel edges must not share one route");
+
+        // The legacy pair-keyed table must not carry an ambiguous entry.
+        QVERIFY(!result.edgeWaypoints.contains(
+                    qMakePair(QStringLiteral("A"), QStringLiteral("C"))));
+    }
+
+    // ASK-M19 residual: a self-loop emits a U-turn route that used to be
+    // absent entirely.
+    void selfLoopProducesTurnRoute() {
+        auto *sNode = new TestNode("S");
+        auto *tNode = new TestNode("T");
+        TestEdge loop("loop", sNode, sNode), out("out", sNode, tNode);
+
+        SugiyamaLayout layout;
+        layout.setNodeSize({100, 60});
+        layout.setSpacing(60, 40);
+        layout.setNodes({sNode, tNode});
+        layout.setEdges({&loop, &out});
+
+        const auto result = layout.compute();
+        QVERIFY(result.edgeWaypointsByEdgeId.contains("loop"));
+        const auto route = result.edgeWaypointsByEdgeId["loop"];
+        QCOMPARE(route.size(), 2);
+        QVERIFY(route.first() != route.last());
+
+        // A single self-loop is not written into the pair-keyed table.
+        QVERIFY(!result.edgeWaypoints.contains(
+                    qMakePair(QStringLiteral("S"), QStringLiteral("S"))));
+
+        // And through applyLayout, the loop edge receives its route while
+        // the plain edge keeps its direct path.
+        GraphScene scene;
+        auto *loopEdge = new TestEdge("loop", sNode, sNode);
+        auto *outEdge = new TestEdge("out", sNode, tNode);
+        scene.addNode(sNode);
+        scene.addNode(tNode);
+        scene.addEdge(loopEdge);
+        scene.addEdge(outEdge);
+        scene.applyLayout(result);
+        QCOMPARE(loopEdge->waypoints(), route);
+        QVERIFY(outEdge->waypoints().isEmpty());
+
+        // Heap-owned test objects: strip them from the scene so its
+        // destructor does not delete what we delete manually.
+        scene.clearGraph();
+        delete loopEdge;
+        delete outEdge;
+        delete sNode;
+        delete tNode;
+    }
 };
 
 QTEST_MAIN(TestSugiyamaLayout)

@@ -46,7 +46,16 @@ struct LayoutResult {
     QHash<QString, QPointF> nodePositions;
     /// Optional waypoints for edges spanning multiple layers (Sugiyama)
     /// or needing routing hints. Key is (sourceId, targetId).
+    /// Only filled for (sourceId, targetId) pairs with a single edge; if
+    /// several edges share the pair (parallel edges, self-loops), each
+    /// edge's route is in edgeWaypointsByEdgeId instead.
     QHash<QPair<QString, QString>, QList<QPointF>> edgeWaypoints;
+    /// Per-edge routes for parallel/self-loop configurations (ASK-M19
+    /// residual). Key is IGraphEdge::edgeId(). Regular single-edge pairs
+    /// normally appear in edgeWaypoints instead; engines MAY also emit
+    /// per-edge entries. Delivered first by applyLayout(); pairs with any
+    /// per-edge route skip the pair-keyed fallback.
+    QHash<QString, QList<QPointF>> edgeWaypointsByEdgeId;
 };
 
 /// Phase 6c: styling for an edge's midpoint label.

@@ -80,6 +80,27 @@ here. When you finish a phase, move its row to ☑ and note the commit hash.
 
 ## Status log
 
+- **2026-10-30 (same day)** — Delivered the second-round asks. **ASK-M14:**
+  `Graffodil::Palette` (`src/core/include/graffodil/Palette.h`) +
+  `GraphScene::setPalette()`/`palette()`/`paletteChanged()`; selection
+  propagation to registered/new `GraphEdgeItem`s via
+  `GraphEdgeItem::setSelectionColor()`; `CreateEdgeTool` (anchor dots,
+  preview line) and `SelectMoveTool` (rubber band, guides) re-theme at
+  gesture start; `GraphMinimap` reads the scene palette at paint time;
+  `BatchRenderer` applies the palette on every `synchronize()` (and
+  immediately via the `paletteChanged()` connection) with an optional
+  per-node colour provider `setNodeColorProvider()`. Defaults reproduce the
+  hard-coded values exactly. **ASK-M15:** item→object resolution maps on
+  `GraphScene` (`nodeForGraphicsItem()`/`edgeForGraphicsItem()`,
+  O(items-at-cursor) instead of O(registry) per mouse event) used by both
+  tools; `edgeActionAt()` now culls with the cache-backed bounding rect
+  before per-point work. **ASK-M19 residual:** `LayoutResult::
+  edgeWaypointsByEdgeId` (additive, keyed by `IGraphEdge::edgeId()`);
+  parallel same-pair edges each get their own dummy chain and route;
+  self-loops emit a per-edge U-turn route; `applyLayout()` delivers
+  per-edge routes first and skips pair-keyed fallback for covered pairs.
+  Full suite 16/16 (tst_sugiyama 19 cases). Design doc updated
+  (Theming section, resolution helpers, LayoutResult/Sugiyama contracts).
 - **2026-10-30** — Second round of Corbomite/Mark-off consolidated asks received
   in [`docs/handoff/2026-10-30-from-corbomite-theming-and-interaction.md`](handoff/2026-10-30-from-corbomite-theming-and-interaction.md)
   (M14 theming surface, M15 spatial hit-testing, M19 residual — waypoint table keyed on

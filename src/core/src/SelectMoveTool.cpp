@@ -21,27 +21,21 @@ static constexpr int kTransientSceneItemRole = 0x47524631; // "GRF1"
 // Prefers nodes over edges when they overlap.
 static IGraphNode *findNodeAt(GraphScene *scene, const QPointF &scenePos)
 {
-    auto items = scene->items(scenePos);
-    for (auto *item : items) {
-        for (auto *node : scene->nodes()) {
-            if (node->graphicsItem() == item
-                || node->graphicsItem()->isAncestorOf(item))
-                return node;
-        }
-    }
+    // items() is Qt's indexed point query; resolution per item is now an
+    // O(1) registry lookup instead of a scan over every node (ASK-M15).
+    const auto items = scene->items(scenePos);
+    for (auto *item : items)
+        if (auto *node = scene->nodeForGraphicsItem(item))
+            return node;
     return nullptr;
 }
 
 static IGraphEdge *findEdgeAt(GraphScene *scene, const QPointF &scenePos)
 {
-    auto items = scene->items(scenePos);
-    for (auto *item : items) {
-        for (auto *edge : scene->edges()) {
-            if (edge->graphicsItem() == item
-                || edge->graphicsItem()->isAncestorOf(item))
-                return edge;
-        }
-    }
+    const auto items = scene->items(scenePos);
+    for (auto *item : items)
+        if (auto *edge = scene->edgeForGraphicsItem(item))
+            return edge;
     return nullptr;
 }
 

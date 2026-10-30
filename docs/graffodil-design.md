@@ -151,8 +151,16 @@ namespace Graffodil {
 struct LayoutResult {
     QHash<QString, QPointF> nodePositions;
     // Optional: waypoints for edges that span multiple layers (Sugiyama)
-    // or need routing hints. Key is (sourceId, targetId).
+    // or need routing hints. Key is (sourceId, targetId). Filled only when
+    // exactly one registered edge matches the pair; for parallel edges
+    // (several edges sharing the pair) and self-loops, per-edge routes in
+    // edgeWaypointsByEdgeId are used instead.
     QHash<QPair<QString, QString>, QList<QPointF>> edgeWaypoints;
+    // Per-edge waypoint routes keyed by IGraphEdge::edgeId(). Used for
+    // parallel-edge instances and self-loops (Sugiyama emits one U-turn
+    // route per self-loop edge). applyLayout() delivers these first; a
+    // pair with any per-edge route skips the pair-keyed fallback above.
+    QHash<QString, QList<QPointF>> edgeWaypointsByEdgeId;
 };
 
 }
@@ -184,6 +192,15 @@ public:
     IGraphEdge *edgeBetweenUndirected(const QString &nodeId1, const QString &nodeId2) const;
     QList<IGraphEdge *> connectedEdges(const QString &nodeId) const;
     QList<IGraphEdge *> edges() const;
+
+    // --- Item -> graph object resolution (hot-path hit-testing) ---
+    // Resolve a QGraphicsItem (or any ancestor item of it) to its
+    // registered node/edge. Backed by item->object maps maintained
+    // automatically on add/remove/clear, so a hit-test costs
+    // O(items under the cursor) instead of O(registry size) — the tools
+    // call these on every mouse event (ASK-M15).
+    IGraphNode *nodeForGraphicsItem(QGraphicsItem *item) const;
+    IGraphEdge *edgeForGraphicsItem(QGraphicsItem *item) const;
 
     // --- Adjacency index ---
     // Efficient per-node edge lookups via internal QMultiHash index.
@@ -695,10 +712,23 @@ Transplanted from PlanStan `libs/graph/src/graphlayout.cpp` (800 LOC).
 
 Five-phase Sugiyama layered layout:
 1. Connected component detection (BFS, deterministic ordering)
-2. Longest-path layer assignment with vertex promotion
+2. Longest-path layer assignment with vertex promotion (fixed-point
+   relaxation — cycles and self-loops cannot corrupt layers, ASK-M19)
 3. Dummy vertex insertion for multi-layer edges
 4. Median-based crossing minimization (adaptive, up to 24 sweeps)
 5. Brandes-Kopf compact coordinate assignment (4 extreme layouts, median)
+
+Edge routing contracts (ASK-M19 residual):
+- Single edges of a `(sourceId, targetId)` pair deliver their dummy-chain
+  waypoints through `LayoutResult::edgeWaypoints` (pair-keyed, unchanged).
+- Parallel edges (several edges sharing a pair) each get their own dummy
+  chain; their routes are delivered per edge via
+  `LayoutResult::edgeWaypointsByEdgeId` (keyed by `IGraphEdge::edgeId()`).
+- Self-loops produce a per-edge U-turn route (two waypoints bulging out
+  on the within-layer axis side of the node) that used to be absent; no
+  pair-keyed entry.
+- `GraphScene::applyLayout()` delivers per-edge routes first; a pair with
+  any per-edge route skips the pair-keyed table for that pair.
 
 ```cpp
 namespace Graffodil {

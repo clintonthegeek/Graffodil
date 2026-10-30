@@ -40,11 +40,14 @@ public:
     IGraphNode *sourceNode() const override { return m_source; }
     IGraphNode *targetNode() const override { return m_target; }
     QGraphicsItem *graphicsItem() override { return this; }
+    void setWaypoints(const QList<QPointF> &waypoints) override { m_waypoints = waypoints; }
+    const QList<QPointF> &waypoints() const { return m_waypoints; }
 
 private:
     QString m_id;
     IGraphNode *m_source;
     IGraphNode *m_target;
+    QList<QPointF> m_waypoints;
 };
 
 } // namespace Graffodil::Test

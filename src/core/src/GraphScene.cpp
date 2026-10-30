@@ -20,6 +20,7 @@ void GraphScene::addNode(IGraphNode *node)
     if (!node || m_nodes.contains(node->nodeId()))
         return;
     m_nodes.insert(node->nodeId(), node);
+    m_nodesByItem.insert(node->graphicsItem(), node);
     // Only assign default z if consumer hasn't set one.
     QGraphicsItem *gi = node->graphicsItem();
     if (gi->zValue() == 0.0)
@@ -48,6 +49,7 @@ void GraphScene::removeNode(const QString &id)
         removeEdge(eid);
 
     removeItem(node->graphicsItem());
+    m_nodesByItem.remove(node->graphicsItem());
     m_nodes.erase(it);
 
     // Cascade into group membership: drop this node from every group.
@@ -91,6 +93,7 @@ void GraphScene::addEdge(IGraphEdge *edge)
         gi->setZValue(m_edgesAboveNodes ? DefaultNodeZ : DefaultEdgeZ);
     if (auto *gei = dynamic_cast<GraphEdgeItem *>(gi))
         gei->setSelectionColor(m_palette.edgeSelection);
+    m_edgesByItem.insert(gi, edge);
     addItem(gi);
     emit edgeAdded(edge);
 }
@@ -145,6 +148,7 @@ void GraphScene::removeEdge(const QString &id)
     // a later adjust() cannot dereference a dead node.
     edge->detachEndpoints();
     removeItem(edge->graphicsItem());
+    m_edgesByItem.remove(edge->graphicsItem());
     m_edges.erase(it);
     emit edgeRemoved(id);
 }
@@ -207,6 +211,7 @@ GraphScene::ClearResult GraphScene::clearGraph()
         edge->detachEndpoints();
     }
     m_edges.clear();
+    m_edgesByItem.clear();
     m_edgesByNode.clear();
     for (auto *edge : result.edges)
         emit edgeRemoved(edge->edgeId());
@@ -214,6 +219,7 @@ GraphScene::ClearResult GraphScene::clearGraph()
     for (auto *node : result.nodes)
         removeItem(node->graphicsItem());
     m_nodes.clear();
+    m_nodesByItem.clear();
     for (auto *node : result.nodes)
         emit nodeRemoved(node->nodeId());
 
@@ -428,9 +434,26 @@ void GraphScene::applyLayout(const LayoutResult &result)
         if (auto *node = nodeForId(it.key()))
             node->graphicsItem()->setPos(it.value());
     }
-    // Deliver routing hints before adjusting so the recomputed paths see them.
+
+    // Per-edge routes first (parallel edges and self-loops — ASK-M19);
+    // they always win for the edge they name.
+    QSet<QPair<QString, QString>> perEdgeRoutedPairs;
+    for (auto it = result.edgeWaypointsByEdgeId.constBegin();
+         it != result.edgeWaypointsByEdgeId.constEnd(); ++it) {
+        if (auto *edge = edgeForId(it.key())) {
+            edge->setWaypoints(it.value());
+            perEdgeRoutedPairs.insert(
+                qMakePair(edge->sourceNodeId(), edge->targetNodeId()));
+        }
+    }
+    // Pair-keyed routes as fallback; a pair that any edge covered via the
+    // per-edge table is skipped so a parallel instance never receives a
+    // neighbour's route.
     for (auto it = result.edgeWaypoints.constBegin();
          it != result.edgeWaypoints.constEnd(); ++it) {
+        if (const auto routed = perEdgeRoutedPairs.constFind(it.key());
+            routed != perEdgeRoutedPairs.constEnd())
+            continue;
         if (auto *edge = edgeBetween(it.key().first, it.key().second))
             edge->setWaypoints(it.value());
     }
@@ -625,6 +648,31 @@ namespace {
 static constexpr qreal kEdgeActionHitRadius = 8.0;
 }
 
+IGraphNode *GraphScene::nodeForGraphicsItem(QGraphicsItem *item) const
+{
+    if (!item)
+        return nullptr;
+    // Walk the item and its parent chain against the registry maps: an
+    // O(1) lookup per step instead of scanning every registered node on
+    // every mouse event (ASK-M15).
+    for (auto *it = item; it; it = it->parentItem()) {
+        if (const auto &hit = m_nodesByItem.constFind(it); hit != m_nodesByItem.constEnd())
+            return hit.value();
+    }
+    return nullptr;
+}
+
+IGraphEdge *GraphScene::edgeForGraphicsItem(QGraphicsItem *item) const
+{
+    if (!item)
+        return nullptr;
+    for (auto *it = item; it; it = it->parentItem()) {
+        if (const auto &hit = m_edgesByItem.constFind(it); hit != m_edgesByItem.constEnd())
+            return hit.value();
+    }
+    return nullptr;
+}
+
 GraphScene::EdgeActionHit
 GraphScene::edgeActionAt(const QPointF &scenePos) const
 {
@@ -637,6 +685,16 @@ GraphScene::edgeActionAt(const QPointF &scenePos) const
                 if (auto *pathItem = dynamic_cast<QGraphicsPathItem *>(gi)) {
                     const QPainterPath &path = pathItem->path();
                     if (!path.isEmpty()) {
+                        // ASK-M15: cull with the (cache-backed) bounding rect
+                        // mapped to scene space before the expensive
+                        // per-point work; the shape is a superset of the
+                        // affordance points, so this never hides a hit.
+                        const QRectF sceneBounds = pathItem->mapToScene(
+                            pathItem->boundingRect()).boundingRect()
+                            .adjusted(-kEdgeActionHitRadius, -kEdgeActionHitRadius,
+                                      kEdgeActionHitRadius, kEdgeActionHitRadius);
+                        if (!sceneBounds.contains(scenePos))
+                            continue;
                         // path points are item-local; hit-testing is in scene
                         // coordinates (nodeSubItemAt does the same).
                         const QPointF pt = pathItem->mapToScene(
