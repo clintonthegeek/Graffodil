@@ -1,4 +1,5 @@
 #include <graffodil/GraphScene.h>
+#include <graffodil/GraphEdgeItem.h>
 #include <graffodil/GraphTool.h>
 #include <graffodil/GroupItem.h>
 #include <graffodil/IGraphNode.h>
@@ -88,8 +89,20 @@ void GraphScene::addEdge(IGraphEdge *edge)
     QGraphicsItem *gi = edge->graphicsItem();
     if (gi->zValue() == 0.0)
         gi->setZValue(m_edgesAboveNodes ? DefaultNodeZ : DefaultEdgeZ);
+    if (auto *gei = dynamic_cast<GraphEdgeItem *>(gi))
+        gei->setSelectionColor(m_palette.edgeSelection);
     addItem(gi);
     emit edgeAdded(edge);
+}
+
+void GraphScene::setPalette(const Palette &palette)
+{
+    m_palette = palette;
+    for (auto *edge : m_edges) {
+        if (auto *gei = dynamic_cast<GraphEdgeItem *>(edge->graphicsItem()))
+            gei->setSelectionColor(m_palette.edgeSelection);
+    }
+    emit paletteChanged();
 }
 
 void GraphScene::setEdgesAboveNodes(bool above)

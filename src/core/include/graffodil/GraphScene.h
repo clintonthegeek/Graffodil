@@ -1,6 +1,7 @@
 #pragma once
 
 #include <graffodil/GroupStyle.h>
+#include <graffodil/Palette.h>
 #include <graffodil/Types.h>
 #include <QGraphicsScene>
 #include <QHash>
@@ -78,6 +79,14 @@ public:
     void setActiveTool(GraphTool *tool);
     GraphTool *activeTool() const;
 
+    // --- Palette (theming surface) ---
+    /// Set the colours Graffodil itself paints (see Palette). Registered
+    /// edges get the new selection colour immediately; tools and the
+    /// minimap pick it up at gesture/paint time; batch mode on the next
+    /// synchronize(). Emits paletteChanged().
+    void setPalette(const Palette &palette);
+    Palette palette() const { return m_palette; }
+
     // --- Selection (typed over interfaces) ---
     QList<IGraphNode *> selectedNodes() const;
     QList<IGraphEdge *> selectedEdges() const;
@@ -143,6 +152,10 @@ signals:
     void nodeRemoved(const QString &id);
     void edgeAdded(IGraphEdge *edge);
     void edgeRemoved(const QString &id);
+
+    /// Emitted by setPalette() so dependent renderers (e.g. BatchRenderer)
+    /// can refresh immediately instead of at the next synchronize().
+    void paletteChanged();
 
     /// Emitted when the user double-clicks on empty scene background
     /// (no graphics item under the cursor at the double-click point).
@@ -303,6 +316,7 @@ private:
     bool m_groupsChangeConnected = false;
     bool m_refreshingGroups = false;
     bool m_groupRefreshQueued = false;
+    Palette m_palette;
 };
 
 } // namespace Graffodil

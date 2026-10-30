@@ -1,6 +1,8 @@
 #include <QTest>
 #include <QSignalSpy>
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsRectItem>
+#include <QGraphicsLineItem>
 #include <QGraphicsTextItem>
 #include <QKeyEvent>
 #include <graffodil/GraphScene.h>
@@ -726,6 +728,79 @@ private slots:
         tool.keyPressEvent(&del);
 
         QCOMPARE(delSpy.count(), 0);
+    }
+
+    // M14: tools read the scene palette at gesture start so a palette
+    // change applies to the next gesture without recreating anything.
+    void rubberBandFollowsScenePalette() {
+        GraphScene scene;
+        Palette pal;
+        pal.rubberBand = QColor(255, 0, 0);
+        scene.setPalette(pal);
+
+        SelectMoveTool tool;
+        scene.setActiveTool(&tool);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(400, 400));   // empty background
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsRectItem *band = nullptr;
+        const auto items = scene.items();
+        for (auto *it : items) {
+            band = qgraphicsitem_cast<QGraphicsRectItem *>(it);
+            if (band)
+                break;
+        }
+        QVERIFY(band);
+        QCOMPARE(band->pen().color(), QColor(255, 0, 0));
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(420, 420));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
+    }
+
+    void connectPreviewFollowsScenePalette() {
+        GraphScene scene;
+        Palette pal;
+        pal.connectPreview = QColor(255, 0, 0);
+        scene.setPalette(pal);
+
+        auto *src = new TestNode("src", {0, 0});
+        auto *tgt = new TestNode("tgt", {200, 0});
+        src->graphicsItem()->setFlag(QGraphicsItem::ItemIsSelectable);
+        scene.addNode(src);
+        scene.addNode(tgt);
+
+        CreateEdgeTool tool;
+        scene.setActiveTool(&tool);
+
+        QGraphicsSceneMouseEvent press(QEvent::GraphicsSceneMousePress);
+        press.setScenePos(QPointF(30, 30));   // on the source node
+        press.setButton(Qt::LeftButton);
+        press.setButtons(Qt::LeftButton);
+        QCoreApplication::sendEvent(&scene, &press);
+
+        QGraphicsLineItem *preview = nullptr;
+        const auto items = scene.items();
+        for (auto *it : items) {
+            preview = qgraphicsitem_cast<QGraphicsLineItem *>(it);
+            if (preview && preview->pen().style() == Qt::DashLine)
+                break;
+            preview = nullptr;
+        }
+        QVERIFY(preview);
+        QCOMPARE(preview->pen().color(), QColor(255, 0, 0));
+
+        QGraphicsSceneMouseEvent release(QEvent::GraphicsSceneMouseRelease);
+        release.setScenePos(QPointF(30, 30));
+        release.setButton(Qt::LeftButton);
+        release.setButtons(Qt::NoButton);
+        QCoreApplication::sendEvent(&scene, &release);
     }
 };
 

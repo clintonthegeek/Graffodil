@@ -1,4 +1,5 @@
 #include <graffodil/GraphMinimap.h>
+#include <graffodil/GraphScene.h>
 
 #include <QGraphicsView>
 #include <QGraphicsScene>
@@ -53,8 +54,12 @@ void GraphMinimap::paintEvent(QPaintEvent * /*event*/)
     painter.setRenderHint(QPainter::Antialiasing);
 
     // Background
-    painter.fillRect(rect(), QColor(30, 30, 30, 200));
-    painter.setPen(QPen(QColor(100, 100, 100), 1));
+    const Graffodil::Palette pal = [this] {
+        const auto *gs = qobject_cast<const GraphScene *>(m_graphicsView->scene());
+        return gs ? gs->palette() : Graffodil::Palette{};
+    }();
+    painter.fillRect(rect(), pal.minimapBackground);
+    painter.setPen(QPen(pal.minimapBorder, 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
 
     // Scene bounds
@@ -90,8 +95,10 @@ void GraphMinimap::paintEvent(QPaintEvent * /*event*/)
         viewRect.height() * scale
     );
 
-    painter.setPen(QPen(QColor(0, 150, 255), 2));
-    painter.setBrush(QColor(0, 150, 255, 30));
+    painter.setPen(QPen(pal.minimapViewRect, 2));
+    painter.setBrush(QColor(pal.minimapViewRect.red(),
+                            pal.minimapViewRect.green(),
+                            pal.minimapViewRect.blue(), 30));
     painter.drawRect(mappedView);
 }
 

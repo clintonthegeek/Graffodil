@@ -44,8 +44,11 @@ void CreateEdgeTool::activate(GraphScene *scene)
     GraphTool::activate(scene);
     if (m_highlight && m_highlight->scene() != scene)
         scene->addItem(m_highlight);
-    if (m_highlight)
+    if (m_highlight) {
         m_highlight->hideAnchors();
+        m_highlight->setColors(scene->palette().anchorDot,
+                               scene->palette().anchorDotFill);
+    }
     emit statusMessage(tr("Click or drag from source node to target node. Esc to cancel."));
 }
 
@@ -103,7 +106,7 @@ void CreateEdgeTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
         m_sawDrag = false;
 
         m_previewLine = m_scene->addLine(QLineF(a.scenePos, a.scenePos),
-                                          QPen(QColor(0, 120, 215), 1.5, Qt::DashLine));
+                                          QPen(m_scene->palette().connectPreview, 1.5, Qt::DashLine));
         m_previewLine->setZValue(1000);
 
         if (m_highlight) {

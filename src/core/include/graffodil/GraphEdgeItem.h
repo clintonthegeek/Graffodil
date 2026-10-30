@@ -49,6 +49,11 @@ public:
     void setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style);
     void setPen(const QPen &pen);
     void setHighlighted(bool highlighted);
+    /// Colour used for the selection stroke in paint(). Defaults to the
+    /// historical hard-coded Qt blue so standalone items are unchanged;
+    /// GraphScene keeps registered items in sync with Palette::edgeSelection.
+    void setSelectionColor(const QColor &color);
+    QColor selectionColor() const { return m_selectionColor; }
     void setWaypoints(const QList<QPointF> &waypoints) override;
 
     // --- Edge label (Phase 6c) ---
@@ -141,6 +146,7 @@ private:
     QList<QPointF> m_waypoints;
     qreal m_hitWidth = 8.0;
     bool m_highlighted = false;
+    QColor m_selectionColor = QColor(0, 120, 215);
     std::optional<std::pair<QColor, QColor>> m_gradient;
 
     QString m_labelText;

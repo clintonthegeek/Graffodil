@@ -1,4 +1,5 @@
 #include <graffodil/GraphMinimap.h>
+#include <graffodil/GraphScene.h>
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -91,6 +92,53 @@ private slots:
         QGraphicsView view(&scene);
         QVERIFY(GraphMinimap::effectiveSceneRect(&view).isNull());
         QVERIFY(GraphMinimap::effectiveSceneRect(nullptr).isNull());
+    }
+
+    // M14: minimap chrome reads Palette from a Graffodil scene at paint
+    // time; with a plain QGraphicsScene the defaults apply.
+    void paletteThemesMinimap() {
+        // Default path (plain QGraphicsScene — historical dark background).
+        {
+            QGraphicsScene scene;
+            scene.setSceneRect(0, 0, 1000, 1000);
+            scene.addItem(new QGraphicsRectItem(500, 500, 100, 100));
+            QGraphicsView view(&scene);
+            view.resize(200, 200);
+            GraphMinimap minimap(&view);
+
+            QImage img(minimap.size(), QImage::Format_ARGB32);
+            img.fill(Qt::white);
+            QPainter p(&img);
+            minimap.render(&p, QPoint(0, 0));
+            p.end();
+            // Sample away from the translucent viewport-rect fill (which
+            // sits near the top-left) and the 1px border.
+            const QRgb corner = img.pixel(100, 90);
+            QVERIFY(qRed(corner) < 120);    // roughly (30,30,30) over white
+        }
+
+        // Themed path: GraphScene palette reaches the widget.
+        {
+            GraphScene scene;
+            scene.setSceneRect(0, 0, 1000, 1000);
+            scene.addItem(new QGraphicsRectItem(500, 500, 100, 100));
+            QGraphicsView view(&scene);
+            view.resize(200, 200);
+            GraphMinimap minimap(&view);
+
+            Graffodil::Palette pal;
+            pal.minimapBackground = QColor(255, 0, 0);   // opaque on purpose
+            scene.setPalette(pal);
+
+            QImage img(minimap.size(), QImage::Format_ARGB32);
+            img.fill(Qt::white);
+            QPainter p(&img);
+            minimap.render(&p, QPoint(0, 0));
+            p.end();
+            const QRgb corner = img.pixel(100, 90);
+            QCOMPARE(qRed(corner), 255);
+            QCOMPARE(qGreen(corner), 0);
+        }
     }
 };
 

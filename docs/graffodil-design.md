@@ -244,12 +244,20 @@ public:
     // the layout is applied.
     void applyLayout(const LayoutResult &result);
 
+    // --- Palette (theming surface) ---
+    void setPalette(const Palette &palette);
+    Palette palette() const;
+    // Registered GraphEdgeItems get edgeSelection pushed on set and
+    // addEdge; tools and the minimap read the palette at gesture/paint
+    // time (no re-creation needed). See "Theming (Palette)" below.
+
 signals:
     void nodeAdded(IGraphNode *node);
     void nodeRemoved(const QString &id);
     void edgeAdded(IGraphEdge *edge);
     void edgeRemoved(const QString &id);
     void selectionChanged();
+    void paletteChanged();
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
@@ -340,6 +348,36 @@ class GroupItem : public QGraphicsObject {
 **Ownership:** GroupItems are owned by the scene — `removeGroup()` and `clearGraph()` delete them. Member ids in the registry are authoritative; resolving them to `IGraphNode*` happens lazily on every refresh, so nodes removed via `removeNode()` drop out of group membership automatically.
 
 ---
+
+## Theming (Palette)
+
+`Palette` (in `graffodil/Palette.h`) is the seam for every colour Graffodil
+itself paints. Node and edge-*content* rendering stays consumer-owned.
+
+Roles: interaction highlights (`edgeSelection`, `anchorDot`/`anchorDotFill`,
+`connectPreview`, `rubberBand`/`rubberBandFill`, `guideLine`), minimap chrome
+(`minimapBackground`/`minimapBorder`/`minimapViewRect`), and batch-mode
+fallbacks (`batchNode`, `batchEdgeNormal`, `batchEdgeDimmed`). Defaults
+reproduce the pre-palette hard-coded values exactly.
+
+Propagation rules:
+
+- `GraphScene::setPalette()` assigns the scene's palette, pushes
+  `edgeSelection` to every registered `GraphEdgeItem` (and each one added
+  later), and emits `paletteChanged()`.
+- `GraphEdgeItem::setSelectionColor()` can also be used directly for
+  standalone items not attached to a registry.
+- `CreateEdgeTool` re-themes its `AnchorHighlight` on `activate()` and reads
+  `connectPreview` when it starts a gesture; `SelectMoveTool` reads
+  `rubberBand`/`rubberBandFill`/`guideLine` when it creates those items.
+- `GraphMinimap` reads the scene's palette inside `paintEvent()`
+  (`qobject_cast<GraphScene*>`); with a plain `QGraphicsScene` the defaults
+  apply.
+- `BatchRenderer` applies the scene palette on every `synchronize()` (and
+  immediately via the `paletteChanged()` connection). A per-node colour
+  provider can be installed with
+  `setNodeColorProvider(std::function<QColor(const IGraphNode *)>)` — it is
+  applied per node during `synchronize()` and wins over `batchNode`.
 
 ## Edge Rendering
 
@@ -445,6 +483,7 @@ public:
     void setTerminus(ArrowEnd end, std::unique_ptr<TerminusStyle> style);
     void setPen(const QPen &pen);      // line style, dash pattern, width, color
     void setHighlighted(bool);
+    void setSelectionColor(const QColor &color);  // selection stroke; scene palette syncs it
 
     // --- Geometry update ---
     // Call when source/target nodes move. Recomputes path from
@@ -788,6 +827,11 @@ public:
 
     // LOD thresholds for progressive detail reduction at zoom levels.
     void setLodThresholds(qreal hideEdges, qreal hideLabels, qreal hideNodes);
+
+    // Colour of an uncached node disc: scene Palette::batchNode by default,
+    // overridden per node by the provider (see "Theming (Palette)").
+    void setNodeColorProvider(
+        std::function<QColor(const IGraphNode *)> provider);
 };
 
 // Independently usable spatial acceleration structures.

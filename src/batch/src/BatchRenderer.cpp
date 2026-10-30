@@ -22,6 +22,7 @@ public:
     BatchNodeItem *nodeItem = nullptr;
     BatchEdgeItem *edgeItem = nullptr;
     bool batchMode = false;
+    std::function<QColor(const IGraphNode *)> nodeColorProvider;
     int autoThreshold = 0;
     qreal lodHideEdges = 0.03;
     qreal lodHideLabels = 0.1;
@@ -35,6 +36,12 @@ BatchRenderer::BatchRenderer(GraphScene *scene) : QObject(scene), d(new Private)
         connect(scene, &QObject::destroyed, this, [this] {
             d->sceneDestroyed = true;
             d->scene = nullptr;
+        });
+        // Re-theme immediately when the scene's palette changes rather than
+        // waiting for the next synchronize().
+        connect(scene, &GraphScene::paletteChanged, this, [this] {
+            if (d->batchMode)
+                synchronize();
         });
     }
 }
@@ -107,6 +114,13 @@ void BatchRenderer::setAutoThreshold(int nodeCount)
     d->autoThreshold = nodeCount;
 }
 
+void BatchRenderer::setNodeColorProvider(std::function<QColor(const IGraphNode *)> provider)
+{
+    d->nodeColorProvider = std::move(provider);
+    if (d->batchMode)
+        synchronize();
+}
+
 void BatchRenderer::synchronize()
 {
     if (!d->scene)
@@ -129,6 +143,8 @@ void BatchRenderer::synchronize()
     QVector<BatchNodeItem::NodeData> nodeData;
     nodeData.reserve(sceneNodes.size());
     QHash<QString, int> nodeIndexMap;
+    const Palette pal = d->scene->palette();
+    d->edgeItem->setEdgeColors(pal.batchEdgeNormal, pal.batchEdgeDimmed);
 
     for (int i = 0; i < sceneNodes.size(); ++i) {
         auto *node = sceneNodes[i];
@@ -137,7 +153,7 @@ void BatchRenderer::synchronize()
         BatchNodeItem::NodeData nd;
         nd.position = node->graphicsItem()->pos();
         nd.radius = qMax(node->nodeBoundingRect().width(), node->nodeBoundingRect().height()) / 2.0;
-        nd.color = QColor(100, 150, 200);
+        nd.color = d->nodeColorProvider ? d->nodeColorProvider(node) : pal.batchNode;
         if (auto *cache = dynamic_cast<IRenderableCache *>(node)) {
             const QSize sz = cache->contentSize();
             if (sz.isValid()) {

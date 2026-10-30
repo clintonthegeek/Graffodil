@@ -178,6 +178,14 @@ void GraphEdgeItem::updateLabelGeometry()
     }
 }
 
+void GraphEdgeItem::setSelectionColor(const QColor &color)
+{
+    if (m_selectionColor == color)
+        return;
+    m_selectionColor = color;
+    update();
+}
+
 void GraphEdgeItem::setHighlighted(bool highlighted)
 {
     if (m_highlighted == highlighted)
@@ -384,7 +392,7 @@ void GraphEdgeItem::paint(QPainter *painter,
         edgePen.setWidthF(edgePen.widthF() + 1.0);
     }
     if (isSelected()) {
-        edgePen.setColor(QColor(0, 120, 215));
+        edgePen.setColor(m_selectionColor);
         edgePen.setWidthF(qMax(edgePen.widthF(), 1.0) + 1.5);
     }
 

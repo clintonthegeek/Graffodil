@@ -871,6 +871,41 @@ private slots:
         // Selection still works normally outside the sub-item area.
         QCOMPARE(scene.selectedNodes().size(), 1);
     }
+
+    // M14: GraphScene::setPalette() must reach both future and already
+    // registered edges, and emit paletteChanged exactly once.
+    void setPalettePropagatesToEdgeItems() {
+        GraphScene scene;
+        auto *src = new Graffodil::Test::TestNode("src", {0, 0});
+        auto *tgt = new Graffodil::Test::TestNode("tgt", {200, 0});
+        scene.addNode(src);
+        scene.addNode(tgt);
+
+        // Edge added before the palette is set gets the colour on setPalette.
+        auto *existing = new Graffodil::GraphEdgeItem(
+            src, Graffodil::AnchorIds::Right, tgt, Graffodil::AnchorIds::Left,
+            std::make_unique<Graffodil::DirectPathStrategy>());
+        scene.addEdge(existing);
+        QCOMPARE(existing->selectionColor(), QColor(0, 120, 215));
+
+        QSignalSpy changed(&scene, &Graffodil::GraphScene::paletteChanged);
+
+        Graffodil::Palette pal;
+        pal.edgeSelection = QColor(255, 0, 0);
+        scene.setPalette(pal);
+        QCOMPARE(existing->selectionColor(), QColor(255, 0, 0));
+        QCOMPARE(changed.count(), 1);
+
+        // Edge added after the palette pick it up from the registry path.
+        auto *added = new Graffodil::GraphEdgeItem(
+            tgt, Graffodil::AnchorIds::Left, src, Graffodil::AnchorIds::Right,
+            std::make_unique<Graffodil::DirectPathStrategy>());
+        scene.addEdge(added);
+        QCOMPARE(added->selectionColor(), QColor(255, 0, 0));
+
+        // palette() getters reflect the constructor default and the update.
+        QCOMPARE(scene.palette().edgeSelection, QColor(255, 0, 0));
+    }
 };
 
 QTEST_MAIN(TestInterfaces)

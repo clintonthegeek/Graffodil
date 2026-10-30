@@ -28,6 +28,11 @@ public:
     /// matching). Pass an empty string for "no active anchor".
     void setActiveAnchor(const QString &anchorId);
 
+    /// Theme the dot colours. Values default to the historical
+    /// hard-coded ones; CreateEdgeTool keeps them in sync with the
+    /// scene's Palette.
+    void setColors(const QColor &dotColor, const QColor &dotFill);
+
     QRectF boundingRect() const override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
                QWidget *widget) override;
@@ -37,6 +42,8 @@ private:
     QPointer<QGraphicsObject> m_nodeGuard;
     QString m_activeAnchorId;
     bool m_visible = false;
+    QColor m_dotColor = QColor(0, 120, 215);
+    QColor m_dotFill = Qt::white;
     static constexpr qreal kDotRadius = 5.0;
 };
 

@@ -56,6 +56,15 @@ void AnchorHighlight::setActiveAnchor(const QString &anchorId)
     update();
 }
 
+void AnchorHighlight::setColors(const QColor &dotColor, const QColor &dotFill)
+{
+    if (m_dotColor == dotColor && m_dotFill == dotFill)
+        return;
+    m_dotColor = dotColor;
+    m_dotFill = dotFill;
+    update();
+}
+
 QRectF AnchorHighlight::boundingRect() const
 {
     if (!m_visible || !m_node || !m_nodeGuard)
@@ -74,16 +83,15 @@ void AnchorHighlight::paint(QPainter *painter,
 
     painter->setRenderHint(QPainter::Antialiasing);
 
-    const QColor accent(0, 120, 215);
     const auto anchors = m_node->anchors();
     for (const Anchor &a : anchors) {
         if (a.id == m_activeAnchorId) {
-            painter->setPen(QPen(Qt::white, 1.5));
-            painter->setBrush(accent);
+            painter->setPen(QPen(m_dotFill, 1.5));
+            painter->setBrush(m_dotColor);
             painter->drawEllipse(a.scenePos, kDotRadius * 1.1, kDotRadius * 1.1);
         } else {
-            painter->setPen(QPen(accent, 1.5));
-            painter->setBrush(Qt::white);
+            painter->setPen(QPen(m_dotColor, 1.5));
+            painter->setBrush(m_dotFill);
             painter->drawEllipse(a.scenePos, kDotRadius * 0.8, kDotRadius * 0.8);
         }
     }

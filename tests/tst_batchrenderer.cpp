@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <QTest>
 #include <graffodil/BatchRenderer.h>
 #include <graffodil/GraphScene.h>
@@ -155,6 +156,91 @@ private slots:
         QCOMPARE(qRed(centre), 255);
         QVERIFY(qGreen(centre) < 50);
         QVERIFY(qBlue(centre) < 50);
+    }
+
+    // M14: the uncached-node disc colour comes from the scene palette and
+    // can be overridden per node by a provider.
+    void batchNodeColorFollowsPaletteAndProvider() {
+        GraphScene scene;
+        auto *n1 = new TestNode("n1", {100, 100});
+        scene.addNode(n1);
+
+        BatchRenderer renderer(&scene);
+        renderer.setBatchMode(true);
+        renderer.synchronize();
+
+        QImage img(300, 300, QImage::Format_ARGB32);
+        auto sampleCentre = [&]() {
+            img.fill(Qt::white);
+            QPainter p(&img);
+            scene.render(&p, QRectF(), QRectF(0, 0, 300, 300));
+            p.end();
+            return img.pixel(100, 100);
+        };
+
+        // Default palette batch node disc.
+        const QRgb def = sampleCentre();
+        QCOMPARE(qRed(def), 100);
+        QCOMPARE(qGreen(def), 150);
+        QCOMPARE(qBlue(def), 200);
+
+        // scene.setPalette() re-themes batch mode immediately.
+        Graffodil::Palette pal;
+        pal.batchNode = QColor(0, 128, 0);
+        scene.setPalette(pal);
+        const QRgb themed = sampleCentre();
+        QCOMPARE(qRed(themed), 0);
+        QCOMPARE(qGreen(themed), 128);
+        QCOMPARE(qBlue(themed), 0);
+
+        // The provider wins over the palette.
+        renderer.setNodeColorProvider([](const IGraphNode *) {
+            return QColor(0, 0, 255);
+        });
+        const QRgb provided = sampleCentre();
+        QCOMPARE(qRed(provided), 0);
+        QCOMPARE(qGreen(provided), 0);
+        QCOMPARE(qBlue(provided), 255);
+    }
+
+    // M14: BatchEdgeItem honours setEdgeColors (BatchRenderer passes the
+    // scene palette through on every synchronize()).
+    void batchEdgeItemHonorsColors() {
+        BatchEdgeItem item;
+        QVector<BatchEdgeItem::EdgeData> edges(1);
+        edges[0].line = QLineF(QPointF(0, 150), QPointF(300, 150));
+        item.setEdges(edges);
+
+        QGraphicsScene scene;
+        scene.addItem(&item);
+        QImage img(300, 300, QImage::Format_ARGB32);
+        auto sampleMidLine = [&]() {
+            img.fill(Qt::white);
+            QPainter p(&img);
+            scene.render(&p, QRectF(), QRectF(0, 0, 300, 300));
+            p.end();
+            return img.pixel(150, 150);
+        };
+
+        // Historical default: translucent grey (alpha 60) over white — a
+        // 0.8px cosmetic pen leaves partial AA coverage, so the blend sits
+        // well above white but below an unrelated colour.
+        const auto greenAt = [&img](int y) {
+            return qGreen(img.pixel(150, y));
+        };
+        sampleMidLine();
+        const int defG = std::min({greenAt(150), greenAt(149), greenAt(151)});
+        QVERIFY(defG > 200);           // translucent, definitely not white
+        QVERIFY(defG < 250);           // and not untouched background
+
+        item.setEdgeColors(QColor(255, 0, 0), QColor(200, 200, 200, 20));
+        sampleMidLine();
+        const int themedG = std::min({greenAt(150), greenAt(149), greenAt(151)});
+        QVERIFY(themedG < 150);        // opaque red replaced the grey
+        QCOMPARE(qRed(img.pixel(150, 150)), 255);
+
+        // Stack-allocated item: the scene must not try to delete it later.
+        scene.removeItem(&item);
     }
 };
 

@@ -144,8 +144,8 @@ void SelectMoveTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
     m_rubberBandModifiers = event->modifiers();
     m_rubberBand = new QGraphicsRectItem(QRectF(m_rubberBandOrigin, QSizeF(0, 0)));
     m_rubberBand->setData(kTransientSceneItemRole, true);
-    m_rubberBand->setPen(QPen(QColor(0, 120, 215), 1, Qt::DashLine));
-    m_rubberBand->setBrush(QBrush(QColor(0, 120, 215, 30)));
+    m_rubberBand->setPen(QPen(m_scene->palette().rubberBand, 1, Qt::DashLine));
+    m_rubberBand->setBrush(QBrush(m_scene->palette().rubberBandFill));
     m_rubberBand->setZValue(10000);
     m_scene->addItem(m_rubberBand);
     m_rubberBanding = true;
@@ -199,7 +199,7 @@ void SelectMoveTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
             m_guideOverlay->setZValue(9999);
             for (const QLineF &g : guides) {
                 auto *line = new QGraphicsLineItem(g, m_guideOverlay);
-                line->setPen(QPen(QColor(255, 100, 200), 0.0, Qt::DashLine));
+                line->setPen(QPen(m_scene->palette().guideLine, 0.0, Qt::DashLine));
             }
             m_scene->addItem(m_guideOverlay);
         }

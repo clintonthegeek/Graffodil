@@ -37,6 +37,15 @@ QRectF BatchEdgeItem::boundingRect() const
     return m_bounds;
 }
 
+void BatchEdgeItem::setEdgeColors(const QColor &normal, const QColor &dimmed)
+{
+    if (m_normalColor == normal && m_dimmedColor == dimmed)
+        return;
+    m_normalColor = normal;
+    m_dimmedColor = dimmed;
+    update();
+}
+
 void BatchEdgeItem::recomputeBounds()
 {
     QRectF b;
@@ -54,7 +63,7 @@ void BatchEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, Q
 
     // Draw normal edges
     if (m_normalCount > 0) {
-        QPen normalPen(QColor(150, 150, 150, 60), 0.8);
+        QPen normalPen(m_normalColor, 0.8);
         normalPen.setCosmetic(true);
         painter->setPen(normalPen);
         QVector<QLineF> lines;
@@ -67,7 +76,7 @@ void BatchEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, Q
     // Draw dimmed edges
     int dimmedCount = m_edges.size() - m_normalCount;
     if (dimmedCount > 0) {
-        QPen dimmedPen(QColor(200, 200, 200, 20), 0.3);
+        QPen dimmedPen(m_dimmedColor, 0.3);
         dimmedPen.setCosmetic(true);
         painter->setPen(dimmedPen);
         QVector<QLineF> lines;

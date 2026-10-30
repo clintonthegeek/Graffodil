@@ -142,6 +142,21 @@ private slots:
 
         delete edge; delete src; delete tgt;
     }
+
+    // M14: the selection colour is now a member with the historical
+    // hard-coded value as its default; GraphScene pushes Palette updates.
+    void selectionColorDefaultsAndOverrides() {
+        TestNode src("src", {0, 0}), tgt("tgt", {200, 0});
+        GraphEdgeItem edge(&src, AnchorIds::Right, &tgt, AnchorIds::Left,
+                           std::make_unique<DirectPathStrategy>());
+        QCOMPARE(edge.selectionColor(), QColor(0, 120, 215));
+
+        edge.setSelectionColor(QColor(255, 0, 0));
+        QCOMPARE(edge.selectionColor(), QColor(255, 0, 0));
+        // No-op unchanged set must not dirty the item.
+        edge.setSelectionColor(QColor(255, 0, 0));
+        QCOMPARE(edge.selectionColor(), QColor(255, 0, 0));
+    }
 };
 
 QTEST_MAIN(TestGraphEdgeItem)
